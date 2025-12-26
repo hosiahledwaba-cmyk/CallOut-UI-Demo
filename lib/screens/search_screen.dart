@@ -7,8 +7,8 @@ import 'package:latlong2/latlong.dart' hide Path;
 import '../widgets/glass_scaffold.dart';
 import '../widgets/search_bar.dart';
 import '../widgets/resource_carousel_card.dart';
-import '../widgets/resource_filters.dart'; // New Widget
-import '../widgets/resource_detail_sheet.dart'; // New Widget
+import '../widgets/resource_filters.dart';
+import '../widgets/resource_detail_sheet.dart';
 import '../widgets/post_preview.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/avatar.dart';
@@ -33,29 +33,34 @@ class _SearchScreenState extends State<SearchScreen> {
   // State
   int _selectedTabIndex = 0; // 0: Community, 1: People, 2: Resources
   String _searchQuery = "";
-  ResourceCategory? _selectedCategory; // Filter for Map
+  ResourceCategory? _selectedCategory;
 
-  // Data - Initialize immediately (Not Late)
+  // Data - Nullable to prevent LateInitializationError
   Future<List<Post>>? _postsFuture;
   Future<List<User>>? _usersFuture;
-  List<Resource> _allResources = []; // Local cache for Map
+  List<Resource> _allResources = [];
   bool _isLoadingResources = true;
 
   @override
   void initState() {
     super.initState();
+    // Initialize futures immediately
     _postsFuture = _repository.searchPosts("");
     _usersFuture = _repository.searchUsers("");
 
-    // Load resources safely
-    _repository.getNearbyResources().then((value) {
-      if (mounted) {
-        setState(() {
-          _allResources = value;
-          _isLoadingResources = false;
+    _repository
+        .getNearbyResources()
+        .then((value) {
+          if (mounted) {
+            setState(() {
+              _allResources = value;
+              _isLoadingResources = false;
+            });
+          }
+        })
+        .catchError((e) {
+          if (mounted) setState(() => _isLoadingResources = false);
         });
-      }
-    });
   }
 
   void _onSearchChanged(String query) {
@@ -77,26 +82,29 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return Scaffold(
       extendBody: true,
-      resizeToAvoidBottomInset: false, // Prevent map distortion
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // --- LAYER 0: Background (Gradient OR Map) ---
-          if (isMapMode)
-            _buildMapLayer()
-          else
-            Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(-0.5, -0.6),
-                  radius: 1.2,
-                  colors: [
-                    DesignTokens.backgroundTop,
-                    DesignTokens.backgroundBottom,
-                    Color(0xFFE6E6FA),
-                  ],
+          // --- LAYER 0: Background ---
+          IndexedStack(
+            index: isMapMode ? 1 : 0,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(-0.5, -0.6),
+                    radius: 1.2,
+                    colors: [
+                      DesignTokens.backgroundTop,
+                      DesignTokens.backgroundBottom,
+                      Color(0xFFE6E6FA),
+                    ],
+                  ),
                 ),
               ),
-            ),
+              _buildMapLayer(),
+            ],
+          ),
 
           // --- LAYER 1: Foreground Content ---
           SafeArea(
@@ -123,7 +131,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     children: [
                       _buildCommunityTab(),
                       _buildPeopleTab(),
-                      _buildResourcesOverlay(), // Controls overlaying the map
+                      _buildResourcesOverlay(),
                     ],
                   ),
                 ),
@@ -135,7 +143,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // --- MAP LAYER (Background) ---
+  // --- MAP LAYER ---
   Widget _buildMapLayer() {
     return FlutterMap(
       mapController: _mapController,
@@ -145,6 +153,7 @@ class _SearchScreenState extends State<SearchScreen> {
           SearchRepository.centerLng,
         ),
         initialZoom: 13.5,
+        interactionOptions: InteractionOptions(flags: InteractiveFlag.all),
       ),
       children: [
         TileLayer(
@@ -152,45 +161,41 @@ class _SearchScreenState extends State<SearchScreen> {
               'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
           subdomains: const ['a', 'b', 'c', 'd'],
         ),
-        if (!_isLoadingResources)
-          MarkerLayer(
-            markers: _filteredResources.map((resource) {
-              return Marker(
-                point: LatLng(resource.latitude, resource.longitude),
-                width: 50,
-                height: 50,
-                alignment: Alignment.bottomCenter,
-                child: GestureDetector(
-                  onTap: () {
-                    // 1. Move map
-                    _mapController.move(
-                      LatLng(resource.latitude, resource.longitude),
-                      15,
+        MarkerLayer(
+          markers: _filteredResources.map((resource) {
+            return Marker(
+              point: LatLng(resource.latitude, resource.longitude),
+              width: 50,
+              height: 50,
+              alignment: Alignment.topCenter,
+              child: GestureDetector(
+                onTap: () {
+                  _mapController.move(
+                    LatLng(resource.latitude, resource.longitude),
+                    15,
+                  );
+                  final index = _filteredResources.indexOf(resource);
+                  if (index != -1) {
+                    _pageController.animateToPage(
+                      index,
+                      duration: DesignTokens.durationMedium,
+                      curve: DesignTokens.animationCurve,
                     );
-                    // 2. Scroll carousel
-                    final index = _filteredResources.indexOf(resource);
-                    if (index != -1) {
-                      _pageController.animateToPage(
-                        index,
-                        duration: DesignTokens.durationMedium,
-                        curve: DesignTokens.animationCurve,
-                      );
-                    }
-                  },
-                  child: _buildGlassMarker(resource),
-                ),
-              );
-            }).toList(),
-          ),
+                  }
+                },
+                child: _buildGlassMarker(resource),
+              ),
+            );
+          }).toList(),
+        ),
       ],
     );
   }
 
-  // --- TAB 3: RESOURCES OVERLAY (Filters + Carousel) ---
+  // --- TAB 3: RESOURCES OVERLAY ---
   Widget _buildResourcesOverlay() {
     return Column(
       children: [
-        // Floating Filters
         ResourceFilters(
           selectedCategory: _selectedCategory,
           onCategorySelected: (cat) {
@@ -200,15 +205,14 @@ class _SearchScreenState extends State<SearchScreen> {
 
         const Spacer(),
 
-        // Carousel
-        if (!_isLoadingResources)
+        // FIX: Increased height from 190 to 260 to fit the new professional card
+        if (_allResources.isNotEmpty)
           SizedBox(
-            height: 190,
+            height: 260,
             child: PageView.builder(
               controller: _pageController,
               itemCount: _filteredResources.length,
               onPageChanged: (index) {
-                // Sync map when swiping carousel
                 final r = _filteredResources[index];
                 _mapController.move(LatLng(r.latitude, r.longitude), 15);
               },
@@ -221,7 +225,6 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-        // Bottom Spacer for Nav Bar
         const SizedBox(height: 90),
       ],
     );
@@ -230,13 +233,13 @@ class _SearchScreenState extends State<SearchScreen> {
   void _showResourceDetails(Resource resource) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Required for DraggableScrollableSheet
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ResourceDetailSheet(resource: resource),
     );
   }
 
-  // --- TAB 1 & 2: STANDARD LISTS ---
+  // --- TAB 1 & 2 ---
   Widget _buildCommunityTab() {
     return FutureBuilder<List<Post>>(
       future: _postsFuture,
@@ -331,10 +334,10 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildGlassMarker(Resource resource) {
-    // Reused marker logic
     Color color = DesignTokens.accentPrimary;
     if (resource.category == ResourceCategory.police) color = Colors.blue;
     if (resource.category == ResourceCategory.medical) color = Colors.red;
+    if (resource.category == ResourceCategory.legal) color = Colors.indigo;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -342,11 +345,15 @@ class _SearchScreenState extends State<SearchScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.9),
+            color: color.withOpacity(0.95),
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
-              BoxShadow(color: color.withOpacity(0.4), blurRadius: 8),
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
           child: Icon(
@@ -357,7 +364,11 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         ClipPath(
           clipper: _TriangleClipper(),
-          child: Container(width: 10, height: 8, color: color.withOpacity(0.9)),
+          child: Container(
+            width: 10,
+            height: 8,
+            color: color.withOpacity(0.95),
+          ),
         ),
       ],
     );
@@ -371,6 +382,8 @@ class _SearchScreenState extends State<SearchScreen> {
         return Icons.local_hospital;
       case ResourceCategory.shelter:
         return Icons.home;
+      case ResourceCategory.legal:
+        return Icons.gavel;
       default:
         return Icons.place;
     }
