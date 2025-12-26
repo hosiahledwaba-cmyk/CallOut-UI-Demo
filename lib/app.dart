@@ -1,7 +1,7 @@
 // lib/app.dart
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
-import 'screens/feed_screen.dart';
+import 'screens/login_screen.dart';
 
 // Simple InheritedWidget to manage simulation settings globally
 class AppSettingsProvider extends InheritedWidget {
@@ -56,7 +56,7 @@ class _SafeSpaceAppState extends State<SafeSpaceApp> {
         title: 'SafeSpace',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const FeedScreen(),
+        home: const LoginScreen(), // Start at Login
       ),
     );
   }

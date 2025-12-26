@@ -1,13 +1,13 @@
 // lib/main.dart
 /* README:
-  Drop these files into lib/ of an existing Flutter project. 
-  UI-only implementation of a GBV Awareness Social Platform.
+  Drop these files into lib/ of an existing Flutter project.
   
-  Dependencies:
-  - flutter: sdk: flutter
-  - cupertino_icons: ^1.0.2 (standard in new projects)
+  Updates:
+  - Added Auth (Login/Signup)
+  - Added Async Data Fetching with Fallback
   
-  Run `flutter run` to view.
+  Flow:
+  Login -> Feed (Tries API, falls back to Mock)
 */
 
 import 'package:flutter/material.dart';

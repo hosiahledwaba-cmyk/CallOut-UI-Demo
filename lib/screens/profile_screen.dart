@@ -6,72 +6,108 @@ import '../widgets/glass_card.dart';
 import '../widgets/top_nav.dart';
 import '../models/user.dart';
 import '../theme/design_tokens.dart';
+import '../data/profile_repository.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Mock current user
-    const user = User(
-      id: 'me',
-      username: 'jane_doe',
-      displayName: 'Jane Doe',
-      avatarUrl: 'https://i.pravatar.cc/150?u=99',
-    );
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ProfileRepository _repository = ProfileRepository();
+  late Future<User> _userFuture;
+  late Future<Map<String, String>> _statsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userFuture = _repository.getUserProfile();
+    _statsFuture = _repository.getUserStats();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GlassScaffold(
       currentTabIndex: 3,
-      body: Column(
-        children: [
-          const TopNav(title: "My Profile"),
-          Padding(
-            padding: const EdgeInsets.all(DesignTokens.paddingMedium),
-            child: Column(
-              children: [
-                const Avatar(user: user, radius: 50),
-                const SizedBox(height: 16),
-                Text(
-                  user.displayName,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                Text(
-                  "@${user.username}",
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: const [
-                    _StatItem(count: "12", label: "Posts"),
-                    _StatItem(count: "340", label: "Following"),
-                    _StatItem(count: "120", label: "Followers"),
+      body: FutureBuilder<User>(
+        future: _userFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError)
+            return const Center(child: Text("Failed to load profile"));
+
+          final user = snapshot.data!;
+
+          return Column(
+            children: [
+              const TopNav(title: "My Profile"),
+              Padding(
+                padding: const EdgeInsets.all(DesignTokens.paddingMedium),
+                child: Column(
+                  children: [
+                    Avatar(user: user, radius: 50),
+                    const SizedBox(height: 16),
+                    Text(
+                      user.displayName,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    Text(
+                      "@${user.username}",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 24),
+                    FutureBuilder<Map<String, String>>(
+                      future: _statsFuture,
+                      builder: (context, statsSnap) {
+                        final stats =
+                            statsSnap.data ??
+                            {"posts": "-", "following": "-", "followers": "-"};
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _StatItem(count: stats['posts']!, label: "Posts"),
+                            _StatItem(
+                              count: stats['following']!,
+                              label: "Following",
+                            ),
+                            _StatItem(
+                              count: stats['followers']!,
+                              label: "Followers",
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    GlassCard(
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.history),
+                            title: const Text("My Reports"),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {},
+                          ),
+                          const Divider(),
+                          ListTile(
+                            leading: const Icon(Icons.bookmark_border),
+                            title: const Text("Saved Resources"),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {},
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                GlassCard(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.history),
-                        title: const Text("My Reports"),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
-                      ),
-                      const Divider(),
-                      ListTile(
-                        leading: const Icon(Icons.bookmark_border),
-                        title: const Text("Saved Resources"),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

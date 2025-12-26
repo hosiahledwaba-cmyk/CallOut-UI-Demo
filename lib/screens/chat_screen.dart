@@ -1,38 +1,77 @@
 // lib/screens/chat_screen.dart
 import 'package:flutter/material.dart';
 import '../models/user.dart';
-import '../data/mock_chat_repository.dart';
+import '../models/message.dart';
+import '../data/chat_repository.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/glass_card.dart';
 import '../theme/design_tokens.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   final User partner;
 
   const ChatScreen({super.key, required this.partner});
 
   @override
-  Widget build(BuildContext context) {
-    final messages = MockChatRepository.getMessages();
+  State<ChatScreen> createState() => _ChatScreenState();
+}
 
+class _ChatScreenState extends State<ChatScreen> {
+  final ChatRepository _repository = ChatRepository();
+  late Future<List<Message>> _messagesFuture;
+  final TextEditingController _textController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _messagesFuture = _repository.getMessages(widget.partner.id);
+  }
+
+  void _sendMessage() async {
+    if (_textController.text.isEmpty) return;
+
+    // Optimistic UI update or wait for API
+    final text = _textController.text;
+    _textController.clear();
+
+    await _repository.sendMessage(widget.partner.id, text);
+
+    // Refresh list
+    setState(() {
+      _messagesFuture = _repository.getMessages(widget.partner.id);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GlassScaffold(
       showBottomNav: false,
       body: Column(
         children: [
-          TopNav(title: partner.displayName, showBack: true),
+          TopNav(title: widget.partner.displayName, showBack: true),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              reverse:
-                  true, // Usually chats are reversed, but for static list we iterate normal or reverse data
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                // Mock data is old->new, UI usually new->old at bottom.
-                // Let's just render them top down for simplicity
-                final msg = messages[index];
-                return MessageBubble(message: msg, isMe: msg.sender.id == 'me');
+            child: FutureBuilder<List<Message>>(
+              future: _messagesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final messages = snapshot.data ?? [];
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    return MessageBubble(
+                      message: msg,
+                      isMe: msg.sender.id == 'me',
+                    );
+                  },
+                );
               },
             ),
           ),
@@ -44,9 +83,10 @@ class ChatScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.add, color: DesignTokens.accentPrimary),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: TextField(
-                      decoration: InputDecoration(
+                      controller: _textController,
+                      decoration: const InputDecoration(
                         hintText: "Type a message...",
                         border: InputBorder.none,
                       ),
@@ -57,7 +97,7 @@ class ChatScreen extends StatelessWidget {
                       Icons.send,
                       color: DesignTokens.accentPrimary,
                     ),
-                    onPressed: () {}, // TODO: Send message
+                    onPressed: _sendMessage,
                   ),
                 ],
               ),

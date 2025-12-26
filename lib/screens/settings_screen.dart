@@ -6,9 +6,20 @@ import '../widgets/top_nav.dart';
 import '../widgets/glass_card.dart';
 import '../theme/design_tokens.dart';
 import '../app.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  void _handleLogout(BuildContext context) {
+    AuthService().logout();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +91,7 @@ class SettingsScreen extends StatelessWidget {
                           "Log Out",
                           style: TextStyle(color: DesignTokens.accentAlert),
                         ),
-                        onTap: () {},
+                        onTap: () => _handleLogout(context),
                       ),
                     ],
                   ),

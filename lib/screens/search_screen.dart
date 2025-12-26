@@ -4,9 +4,27 @@ import '../widgets/glass_scaffold.dart';
 import '../widgets/search_bar.dart';
 import '../widgets/glass_card.dart';
 import '../theme/design_tokens.dart';
+import '../data/search_repository.dart';
+import '../models/resource.dart';
 
-class SearchScreen extends StatelessWidget {
+class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
+
+  @override
+  State<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends State<SearchScreen> {
+  final SearchRepository _repository = SearchRepository();
+  late Future<List<String>> _topicsFuture;
+  late Future<List<Resource>> _resourcesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _topicsFuture = _repository.getSuggestedTopics();
+    _resourcesFuture = _repository.getNearbyResources();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,23 +36,25 @@ class SearchScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 40),
-            GlassSearchBar(onChanged: (val) {}),
+            GlassSearchBar(
+              onChanged: (val) {},
+            ), // TODO: Wire up API Search query
             const SizedBox(height: 20),
             Text(
               "Suggested Topics",
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildChip("Legal Aid"),
-                _buildChip("Counseling"),
-                _buildChip("Shelters"),
-                _buildChip("Self Defense"),
-                _buildChip("Report Anonymous"),
-              ],
+            FutureBuilder<List<String>>(
+              future: _topicsFuture,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const LinearProgressIndicator();
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: snapshot.data!.map((t) => _buildChip(t)).toList(),
+                );
+              },
             ),
             const SizedBox(height: 20),
             Text(
@@ -43,13 +63,20 @@ class SearchScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildResourceCard("Women's Clinic", "2.4 km away"),
-                  _buildResourceCard("Central Police Station", "5.1 km away"),
-                  _buildResourceCard("Hope Foundation", "1.2 km away"),
-                ],
+              child: FutureBuilder<List<Resource>>(
+                future: _resourcesFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData)
+                    return const Center(child: CircularProgressIndicator());
+                  return ListView.builder(
+                    padding: EdgeInsets.zero,
+                    itemCount: snapshot.data!.length,
+                    itemBuilder: (context, index) {
+                      final r = snapshot.data![index];
+                      return _buildResourceCard(r);
+                    },
+                  );
+                },
               ),
             ),
           ],
@@ -66,17 +93,20 @@ class SearchScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildResourceCard(String title, String subtitle) {
+  Widget _buildResourceCard(Resource r) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: GlassCard(
         child: ListTile(
-          leading: const Icon(Icons.place, color: DesignTokens.accentSecondary),
+          leading: Icon(
+            r.type == 'police' ? Icons.local_police : Icons.place,
+            color: DesignTokens.accentSecondary,
+          ),
           title: Text(
-            title,
+            r.name,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          subtitle: Text(subtitle),
+          subtitle: Text(r.distance),
           trailing: const Icon(Icons.directions),
         ),
       ),

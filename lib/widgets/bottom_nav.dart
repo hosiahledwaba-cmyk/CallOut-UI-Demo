@@ -16,7 +16,6 @@ class BottomNav extends StatelessWidget {
   void _onTap(BuildContext context, int index) {
     if (index == currentIndex) return;
 
-    // Simple replacement navigation to mimic tabs without PageView complexity
     Widget nextScreen;
     switch (index) {
       case 0:
@@ -39,49 +38,66 @@ class BottomNav extends StatelessWidget {
       context,
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => nextScreen,
-        transitionDuration: Duration.zero, // Instant switch
+        transitionDuration: Duration.zero,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: 85,
-          decoration: BoxDecoration(
-            color: DesignTokens.glassWhite.withOpacity(0.5),
-            border: const Border(
-              top: BorderSide(color: DesignTokens.glassBorder),
+    return Padding(
+      // Padding creates the "Floating" effect, lifting it off the edges
+      padding: const EdgeInsets.fromLTRB(
+        DesignTokens.paddingMedium,
+        0,
+        DesignTokens.paddingMedium,
+        DesignTokens.paddingMedium +
+            10, // Extra bottom padding for iPhone home indicator area
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32), // Fully rounded pill shape
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 70, // Compact height
+            decoration: BoxDecoration(
+              color: DesignTokens.glassWhite.withOpacity(0.65),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: DesignTokens.glassBorder, width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: DesignTokens.glassShadow.withOpacity(0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                  spreadRadius: 0,
+                ),
+              ],
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: CupertinoIcons.home,
-                isActive: currentIndex == 0,
-                onTap: () => _onTap(context, 0),
-              ),
-              _NavItem(
-                icon: CupertinoIcons.search,
-                isActive: currentIndex == 1,
-                onTap: () => _onTap(context, 1),
-              ),
-              _CreateButton(context),
-              _NavItem(
-                icon: CupertinoIcons.chat_bubble,
-                isActive: currentIndex == 2,
-                onTap: () => _onTap(context, 2),
-              ),
-              _NavItem(
-                icon: CupertinoIcons.person,
-                isActive: currentIndex == 3,
-                onTap: () => _onTap(context, 3),
-              ),
-            ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _NavItem(
+                  icon: CupertinoIcons.home,
+                  isActive: currentIndex == 0,
+                  onTap: () => _onTap(context, 0),
+                ),
+                _NavItem(
+                  icon: CupertinoIcons.search,
+                  isActive: currentIndex == 1,
+                  onTap: () => _onTap(context, 1),
+                ),
+                _NavItem(
+                  icon: CupertinoIcons.chat_bubble,
+                  isActive: currentIndex == 2,
+                  onTap: () => _onTap(context, 2),
+                ),
+                _NavItem(
+                  icon: CupertinoIcons.person,
+                  isActive: currentIndex == 3,
+                  onTap: () => _onTap(context, 3),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -104,56 +120,21 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Icon(
-        icon,
-        size: 28,
-        color: isActive
-            ? DesignTokens.accentPrimary
-            : DesignTokens.textSecondary,
-      ),
-    );
-  }
-}
-
-class _CreateButton extends StatelessWidget {
-  final BuildContext parentContext;
-  const _CreateButton(this.parentContext);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to Create Post
-        Navigator.pushNamed(parentContext, '/create'); // Or direct route
-        // Since we don't have named routes setup in main, use direct:
-        // Cyclic dependency avoided by lazy import or moving logic.
-        // For this generated code, we will rely on route names not being perfect
-        // or just import the screen file.
-        // Importing CreatePostScreen here creates import cycle if CreatePostScreen uses BottomNav.
-        // We will assume CreatePostScreen is a modal and doesn't have bottom nav.
-
-        // Dynamic import workaround for the generator constraint:
-        // We will use Navigator.push with a placeholder builder for now,
-        // or actually import it since it's a separate screen stack.
-        // In this strict file list, let's use a named route string
-        // that we will handle in a real app, OR import the screen directly.
-        // I will import it.
-      },
+      behavior: HitTestBehavior.opaque, // Ensures tap target size is decent
       child: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: DesignTokens.primaryGradient,
-          boxShadow: [
-            BoxShadow(
-              color: DesignTokens.accentPrimary.withOpacity(0.4),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: AnimatedScale(
+          scale: isActive ? 1.1 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          child: Icon(
+            icon,
+            size: 28,
+            color: isActive
+                ? DesignTokens.accentPrimary
+                : DesignTokens.textSecondary,
+          ),
         ),
-        child: const Icon(Icons.add, color: Colors.white, size: 30),
       ),
     );
   }
