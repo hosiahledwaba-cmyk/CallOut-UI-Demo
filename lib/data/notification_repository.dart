@@ -7,10 +7,10 @@ import '../models/notification_item.dart';
 class NotificationRepository {
   Future<List<NotificationItem>> getNotifications() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.notifications),
-        headers: ApiConfig.headers,
-      );
+      final response = await http
+          .get(Uri.parse(ApiConfig.notifications), headers: ApiConfig.headers)
+          .timeout(ApiConfig.timeout);
+
       if (response.statusCode == 200) {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => NotificationItem.fromJson(e)).toList();
@@ -27,12 +27,6 @@ class NotificationRepository {
         NotificationItem(
           id: 'n2',
           message: "Sarah liked your post.",
-          isUrgent: false,
-          timestamp: DateTime.now(),
-        ),
-        NotificationItem(
-          id: 'n3',
-          message: "New resources added to your area.",
           isUrgent: false,
           timestamp: DateTime.now(),
         ),

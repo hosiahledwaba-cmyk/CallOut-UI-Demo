@@ -1,6 +1,9 @@
 // lib/services/auth_service.dart
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../models/user.dart';
+import '../data/api_config.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -10,75 +13,50 @@ class AuthService {
   User? _currentUser;
   User? get currentUser => _currentUser;
 
-  // --- 3 DEFAULT TEST USERS ---
-
-  // 1. New User: Unverified, Cannot Post
-  static const User _testUserNew = User(
-    id: 'u_new',
-    username: 'new_user',
-    displayName: 'New Member',
-    avatarUrl: 'https://i.pravatar.cc/150?u=new',
-    isVerified: false,
-    isActivist: false,
-  );
-
-  // 2. Verified User: Identity Verified, Cannot Post (Consumer only)
-  static const User _testUserVerified = User(
-    id: 'u_verified',
-    username: 'verified_user',
-    displayName: 'Verified Citizen',
-    avatarUrl: 'https://i.pravatar.cc/150?u=ver',
-    isVerified: true,
-    isActivist: false,
-  );
-
-  // 3. Activist: Verified & Can Post (Content Creator)
-  static const User _testUserActivist = User(
-    id: 'u_activist',
-    username: 'activist_pro',
-    displayName: 'Community Leader',
-    avatarUrl: 'https://i.pravatar.cc/150?u=act',
-    isVerified: true,
-    isActivist: true,
-  );
-
+  // --- API + MOCK LOGIN ---
   Future<bool> login(String username, String password) async {
-    // TODO: Wire to real API
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.login),
+            headers: ApiConfig.headers,
+            body: jsonEncode({'username': username, 'password': password}),
+          )
+          .timeout(ApiConfig.timeout);
 
-    // Mock Login Logic for Testing
-    if (username == 'new' || username == 'new_user') {
-      _currentUser = _testUserNew;
-      return true;
+      if (response.statusCode == 200) {
+        _currentUser = User.fromJson(jsonDecode(response.body));
+        return true;
+      }
+    } catch (e) {
+      // API Failed/Timeout -> Use Mock Fallback
+      return _mockLogin(username);
     }
-    if (username == 'verified' || username == 'verified_user') {
-      _currentUser = _testUserVerified;
-      return true;
-    }
-    if (username == 'activist' || username == 'activist_pro') {
-      _currentUser = _testUserActivist;
-      return true;
-    }
-
-    // Default fallback if typing random stuff (Treat as New User)
-    if (username.isNotEmpty && password.length > 3) {
-      _currentUser = _testUserNew;
-      return true;
-    }
-
     return false;
   }
 
-  // Updated Signup: Username & Password ONLY
+  // --- API + MOCK SIGNUP ---
   Future<bool> signup(String username, String password) async {
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.signup),
+            headers: ApiConfig.headers,
+            body: jsonEncode({'username': username, 'password': password}),
+          )
+          .timeout(ApiConfig.timeout);
 
-    if (username.isNotEmpty && password.length > 3) {
-      // New signups are always "New Users" (Not Verified, Not Activists)
+      if (response.statusCode == 201) {
+        _currentUser = User.fromJson(jsonDecode(response.body));
+        return true;
+      }
+    } catch (e) {
+      // API Failed/Timeout -> Use Mock Fallback
+      await Future.delayed(const Duration(seconds: 1)); // Sim delay
       _currentUser = User(
         id: 'u_${DateTime.now().millisecondsSinceEpoch}',
         username: username,
-        displayName: username, // Display name defaults to username initially
+        displayName: username,
         avatarUrl: 'https://i.pravatar.cc/150?u=${username.length}',
         isVerified: false,
         isActivist: false,
@@ -90,5 +68,41 @@ class AuthService {
 
   void logout() {
     _currentUser = null;
+  }
+
+  // --- MOCK LOGIC ---
+  bool _mockLogin(String username) {
+    if (username.contains('activist')) {
+      _currentUser = const User(
+        id: 'u_act',
+        username: 'activist_pro',
+        displayName: 'Community Leader',
+        avatarUrl: 'https://i.pravatar.cc/150?u=act',
+        isVerified: true,
+        isActivist: true,
+      );
+      return true;
+    }
+    if (username.contains('verified')) {
+      _currentUser = const User(
+        id: 'u_ver',
+        username: 'verified_user',
+        displayName: 'Verified Citizen',
+        avatarUrl: 'https://i.pravatar.cc/150?u=ver',
+        isVerified: true,
+        isActivist: false,
+      );
+      return true;
+    }
+    // Default New User
+    _currentUser = const User(
+      id: 'u_new',
+      username: 'new_user',
+      displayName: 'New Member',
+      avatarUrl: 'https://i.pravatar.cc/150?u=new',
+      isVerified: false,
+      isActivist: false,
+    );
+    return true;
   }
 }

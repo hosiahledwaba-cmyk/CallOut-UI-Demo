@@ -9,6 +9,10 @@ import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../theme/design_tokens.dart';
 import 'verification_screen.dart';
+import 'my_reports_screen.dart';
+import 'saved_resources_screen.dart';
+import 'safety_checkins_screen.dart';
+import 'user_list_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -27,11 +31,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(builder: (context) => const VerificationScreen()),
     );
 
-    // If verification succeeded, refresh user state (Mock logic)
     if (result == true) {
       setState(() {
-        // Mocking the update: In real app, fetch fresh user profile
-        // Here we just "upgrade" the local user object for visual feedback
         if (_user != null) {
           _user = User(
             id: _user!.id,
@@ -39,17 +40,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             displayName: _user!.displayName,
             avatarUrl: _user!.avatarUrl,
             isVerified: true,
-            isActivist: true, // Assuming full flow completed
+            isActivist: true,
           );
         }
       });
     }
   }
 
+  void _navigateTo(Widget screen) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_user == null)
-      return const SizedBox(); // Should redirect to login ideally
+    if (_user == null) return const SizedBox();
 
     return GlassScaffold(
       currentTabIndex: 3,
@@ -104,10 +108,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: const [
-                      _StatItem(count: "0", label: "Posts"), // Mock
-                      _StatItem(count: "12", label: "Following"),
-                      _StatItem(count: "5", label: "Followers"),
+                    children: [
+                      // Clickable Stats
+                      GestureDetector(
+                        onTap: () => _navigateTo(const MyReportsScreen()),
+                        child: const _StatItem(count: "2", label: "Reports"),
+                      ),
+                      GestureDetector(
+                        onTap: () => _navigateTo(
+                          const UserListScreen(title: "Following"),
+                        ),
+                        child: const _StatItem(count: "12", label: "Following"),
+                      ),
+                      GestureDetector(
+                        onTap: () => _navigateTo(
+                          const UserListScreen(title: "Followers"),
+                        ),
+                        child: const _StatItem(count: "5", label: "Followers"),
+                      ),
                     ],
                   ),
 
@@ -117,34 +135,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.history),
+                          leading: const Icon(
+                            Icons.history,
+                            color: DesignTokens.accentPrimary,
+                          ),
                           title: const Text("My Reports"),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {},
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            color: DesignTokens.textSecondary,
+                          ),
+                          onTap: () => _navigateTo(const MyReportsScreen()),
                         ),
                         const Divider(),
                         ListTile(
-                          leading: const Icon(Icons.bookmark_border),
+                          leading: const Icon(
+                            Icons.bookmark_border,
+                            color: DesignTokens.accentPrimary,
+                          ),
                           title: const Text("Saved Resources"),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {},
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            color: DesignTokens.textSecondary,
+                          ),
+                          onTap: () =>
+                              _navigateTo(const SavedResourcesScreen()),
                         ),
                         const Divider(),
                         ListTile(
-                          leading: const Icon(Icons.security),
+                          leading: const Icon(
+                            Icons.security,
+                            color: DesignTokens.accentPrimary,
+                          ),
                           title: const Text("Safety Check-ins"),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {},
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            color: DesignTokens.textSecondary,
+                          ),
+                          onTap: () =>
+                              _navigateTo(const SafetyCheckinsScreen()),
                         ),
                       ],
                     ),
                   ),
+
+                  // Extra padding for scrolling above bottom nav
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
           ),
-          // Spacer for bottom nav
-          const SizedBox(height: 80),
         ],
       ),
     );
@@ -224,14 +263,21 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          count,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        Text(label, style: const TextStyle(color: DesignTokens.textSecondary)),
-      ],
+    return Container(
+      color: Colors.transparent, // Hit test area
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          Text(
+            count,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            label,
+            style: const TextStyle(color: DesignTokens.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 }
