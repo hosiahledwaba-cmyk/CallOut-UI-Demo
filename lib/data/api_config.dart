@@ -2,7 +2,8 @@
 class ApiConfig {
   // 1. Set this to your actual backend URL when ready.
   // Leave it as is to force the app to use Mock Data (since this URL won't resolve).
-  static const String baseUrl = "https://api.yoursafespaceapp.com/v1";
+  static const String baseUrl =
+      "https://serverless-api-test-iota.vercel.app/v1";
 
   // 2. Endpoints
   static const String login = "$baseUrl/auth/login";

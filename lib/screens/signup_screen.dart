@@ -21,13 +21,24 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isLoading = false;
 
   void _handleSignup() async {
+    final username = _usernameController.text.trim();
+    final password = _passController.text;
+
+    // 1. Client-Side Validation
+    if (username.isEmpty) {
+      _showError("Please enter a username.");
+      return;
+    }
+
+    if (password.length < 6) {
+      _showError("Password is too short (min 6 chars).");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    // Only sending Username and Password now
-    final success = await AuthService().signup(
-      _usernameController.text,
-      _passController.text,
-    );
+    // 2. Attempt API Signup
+    final success = await AuthService().signup(username, password);
 
     setState(() => _isLoading = false);
 
@@ -38,10 +49,19 @@ class _SignupScreenState extends State<SignupScreen> {
         (route) => false,
       );
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Signup failed. Password too short?")),
-      );
+      // Generic error if API returns != 201
+      _showError("Signup failed. Username might be taken.");
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: DesignTokens.accentAlert,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -81,7 +101,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 16),
                   GlassTextField(
-                    hint: "Password",
+                    hint: "Password (min 6 chars)",
                     icon: Icons.lock_outline,
                     isPassword: true,
                     controller: _passController,
