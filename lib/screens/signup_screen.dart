@@ -16,28 +16,30 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passController = TextEditingController();
   bool _isLoading = false;
 
   void _handleSignup() async {
     setState(() => _isLoading = true);
 
+    // Only sending Username and Password now
     final success = await AuthService().signup(
-      _nameController.text,
-      _emailController.text,
+      _usernameController.text,
       _passController.text,
     );
 
     setState(() => _isLoading = false);
 
     if (success && mounted) {
-      // Clear navigation stack and go to feed
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const FeedScreen()),
         (route) => false,
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Signup failed. Password too short?")),
       );
     }
   }
@@ -55,17 +57,27 @@ class _SignupScreenState extends State<SignupScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  GlassTextField(
-                    hint: "Full Name",
-                    icon: Icons.person_outline,
-                    controller: _nameController,
+                  const Text(
+                    "Safety First.",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: DesignTokens.textPrimary,
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Secure your username now. \nComplete your profile verification later to post.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: DesignTokens.textSecondary),
+                  ),
+                  const SizedBox(height: 40),
+
+                  // Simplified Form
                   GlassTextField(
-                    hint: "Email",
-                    icon: Icons.email_outlined,
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    hint: "Username",
+                    icon: Icons.person_outline,
+                    controller: _usernameController,
                   ),
                   const SizedBox(height: 16),
                   GlassTextField(
@@ -74,6 +86,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     isPassword: true,
                     controller: _passController,
                   ),
+
                   const SizedBox(height: 32),
                   _isLoading
                       ? const CircularProgressIndicator(

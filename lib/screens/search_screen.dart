@@ -12,6 +12,8 @@ import '../widgets/resource_detail_sheet.dart';
 import '../widgets/post_preview.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/avatar.dart';
+import '../widgets/bottom_nav.dart'; // Added Import
+import '../widgets/top_nav.dart'; // Added Import
 import '../theme/design_tokens.dart';
 import '../data/search_repository.dart';
 import '../models/resource.dart';
@@ -35,7 +37,7 @@ class _SearchScreenState extends State<SearchScreen> {
   String _searchQuery = "";
   ResourceCategory? _selectedCategory;
 
-  // Data - Nullable to prevent LateInitializationError
+  // Data
   Future<List<Post>>? _postsFuture;
   Future<List<User>>? _usersFuture;
   List<Resource> _allResources = [];
@@ -44,7 +46,6 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize futures immediately
     _postsFuture = _repository.searchPosts("");
     _usersFuture = _repository.searchUsers("");
 
@@ -107,36 +108,50 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
 
           // --- LAYER 1: Foreground Content ---
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GlassSearchBar(onChanged: _onSearchChanged),
-                ),
-                const SizedBox(height: 12),
+          Column(
+            children: [
+              // 1. Top Navigation
+              const TopNav(
+                title: "Explore",
+                showBack: false,
+                showSettings: false,
+                showNotificationIcon: true,
+              ),
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildGlassTabBar(),
-                ),
+              // 2. Search & Filter Area
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: GlassSearchBar(onChanged: _onSearchChanged),
+              ),
+              const SizedBox(height: 12),
 
-                const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildGlassTabBar(),
+              ),
+              const SizedBox(height: 12),
 
-                Expanded(
-                  child: IndexedStack(
-                    index: _selectedTabIndex,
-                    children: [
-                      _buildCommunityTab(),
-                      _buildPeopleTab(),
-                      _buildResourcesOverlay(),
-                    ],
-                  ),
+              // 3. Main Content
+              Expanded(
+                child: IndexedStack(
+                  index: _selectedTabIndex,
+                  children: [
+                    _buildCommunityTab(),
+                    _buildPeopleTab(),
+                    _buildResourcesOverlay(),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
+          // --- LAYER 2: Bottom Navigation ---
+          // Positioned at the bottom of the stack
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: BottomNav(currentIndex: 1), // Index 1 is Search
           ),
         ],
       ),
@@ -205,7 +220,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
         const Spacer(),
 
-        // FIX: Increased height from 190 to 260 to fit the new professional card
+        // Resource Carousel
         if (_allResources.isNotEmpty)
           SizedBox(
             height: 260,
@@ -225,7 +240,8 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-        const SizedBox(height: 90),
+        // Increased spacer to clear the Floating Bottom Nav
+        const SizedBox(height: 100),
       ],
     );
   }
@@ -250,7 +266,8 @@ class _SearchScreenState extends State<SearchScreen> {
           return const Center(child: Text("No posts found."));
 
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+          // Extra bottom padding to clear BottomNav
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
           itemCount: snapshot.data!.length,
           itemBuilder: (c, i) => PostPreview(post: snapshot.data![i]),
         );
@@ -268,7 +285,8 @@ class _SearchScreenState extends State<SearchScreen> {
           return const Center(child: Text("No users found."));
 
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+          // Extra bottom padding to clear BottomNav
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
           itemCount: snapshot.data!.length,
           itemBuilder: (c, i) => Padding(
             padding: const EdgeInsets.only(bottom: 12),

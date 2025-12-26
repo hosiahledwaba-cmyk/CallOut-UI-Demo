@@ -8,6 +8,7 @@ import '../data/feed_repository.dart';
 import '../models/post.dart';
 import '../theme/design_tokens.dart';
 import 'create_post_screen.dart';
+import '../services/auth_service.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -34,26 +35,35 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Check Permissions
+    final currentUser = AuthService().currentUser;
+    final bool canPost = currentUser?.isActivist ?? false;
+
     return GlassScaffold(
       currentTabIndex: 0,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreatePostScreen()),
-          );
-        },
-        backgroundColor: DesignTokens.accentPrimary,
-        child: const Icon(Icons.add),
-      ),
+      // Only show FAB if user is an Activist
+      floatingActionButton: canPost
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreatePostScreen(),
+                  ),
+                );
+              },
+              backgroundColor: DesignTokens.accentPrimary,
+              child: const Icon(Icons.add),
+            )
+          : null,
+
       body: Column(
         children: [
           TopNav(
             title: "SafeSpace",
-            showSettings: true, // Show Settings on left
-            showNotificationIcon: true, // Show Bell on right
+            showSettings: true,
+            showNotificationIcon: true,
             extraActions: [
-              // Add a specific refresh button alongside the bell
               IconButton(
                 icon: const Icon(Icons.refresh, size: 22),
                 color: DesignTokens.textPrimary,
@@ -75,34 +85,10 @@ class _FeedScreenState extends State<FeedScreen> {
                 }
 
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: DesignTokens.accentAlert,
-                          size: 40,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Connection Error",
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        TextButton(
-                          onPressed: _refreshFeed,
-                          child: const Text("Try Again"),
-                        ),
-                      ],
-                    ),
-                  );
+                  return Center(child: Text("Connection Error"));
                 }
 
                 final posts = snapshot.data ?? [];
-
-                if (posts.isEmpty) {
-                  return const Center(child: Text("No posts available."));
-                }
 
                 return RefreshIndicator(
                   onRefresh: () async => _refreshFeed(),
@@ -112,6 +98,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     itemCount: posts.length + 1,
                     itemBuilder: (context, index) {
                       if (index == 0) {
+                        // SOS Header
                         return Padding(
                           padding: const EdgeInsets.only(
                             bottom: DesignTokens.paddingMedium,
@@ -152,8 +139,7 @@ class _FeedScreenState extends State<FeedScreen> {
               },
             ),
           ),
-          // Spacer logic handled by padding in the new floating bottom nav,
-          // but we keep a small safety margin here for the list end.
+          // Bottom padding logic handled by navbar inset
           const SizedBox(height: 80),
         ],
       ),
