@@ -18,6 +18,7 @@ class ChatRepository {
       }
       throw Exception('Failed');
     } catch (e) {
+      // Mock Data
       return [
         const User(
           id: 'u3',
@@ -33,11 +34,10 @@ class ChatRepository {
 
   Future<List<Message>> getMessages(String chatId) async {
     try {
+      final url = ApiConfig.chatMessages.replaceAll('{id}', chatId);
+
       final response = await http
-          .get(
-            Uri.parse("${ApiConfig.chats}/$chatId/messages"),
-            headers: ApiConfig.headers,
-          )
+          .get(Uri.parse(url), headers: ApiConfig.headers)
           .timeout(ApiConfig.timeout);
 
       if (response.statusCode == 200) {
@@ -85,9 +85,11 @@ class ChatRepository {
 
   Future<Message?> sendMessage(String chatId, String text) async {
     try {
+      final url = ApiConfig.chatMessages.replaceAll('{id}', chatId);
+
       final response = await http
           .post(
-            Uri.parse("${ApiConfig.chats}/$chatId/messages"),
+            Uri.parse(url),
             headers: ApiConfig.headers,
             body: jsonEncode({'text': text}),
           )

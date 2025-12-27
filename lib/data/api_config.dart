@@ -5,37 +5,40 @@ class ApiConfig {
   static const String baseUrl = ""; // paste the url below here when ready:
   //  "https://serverless-api-test-iota.vercel.app/v1"
 
-  // 2. Endpoints
+  // Auth
   static const String login = "$baseUrl/auth/login";
   static const String signup = "$baseUrl/auth/signup";
 
-  // Feed & Posts
+  // Feed
   static const String feed = "$baseUrl/feed";
-  static const String posts = "$baseUrl/posts"; // GET list, POST create
-  static const String postLike =
-      "$baseUrl/posts/{id}/like"; // POST to like, DELETE to unlike
-  static const String postComment =
-      "$baseUrl/posts/{id}/comments"; // POST comment
-  static const String postShare = "$baseUrl/posts/{id}/share"; // POST share
+  static const String posts = "$baseUrl/posts";
+  static const String postLike = "$baseUrl/posts/{id}/like";
+  static const String postComment = "$baseUrl/posts/{id}/comments";
+  static const String postShare = "$baseUrl/posts/{id}/share";
 
-  // Users & Profile
-  static const String profile = "$baseUrl/profile";
-  static const String userFollow =
-      "$baseUrl/users/{id}/follow"; // POST follow, DELETE unfollow
-  static const String notifications = "$baseUrl/notifications";
+  // Users
+  static const String users = "$baseUrl/users"; // GET list
+  static const String userProfile =
+      "$baseUrl/users/{id}"; // GET specific profile
+  static const String userPosts =
+      "$baseUrl/users/{id}/posts"; // GET user's posts
+  static const String userFollow = "$baseUrl/users/{id}/follow";
+  static const String profile = "$baseUrl/profile"; // GET 'me'
 
-  // Search & Resources
-  static const String chats = "$baseUrl/chats";
+  // Chat
+  static const String chats = "$baseUrl/chats"; // GET active convos
+  static const String chatMessages =
+      "$baseUrl/chats/{id}/messages"; // GET/POST messages
+
+  static const String resources = "$baseUrl/resources";
   static const String searchUsers = "$baseUrl/search/users";
   static const String searchPosts = "$baseUrl/search/posts";
-  static const String resources = "$baseUrl/resources";
+  static const String notifications = "$baseUrl/notifications";
 
-  // 3. Headers
   static Map<String, String> get headers => {
     "Content-Type": "application/json",
     "Accept": "application/json",
   };
 
-  // 4. Timeouts
   static const Duration timeout = Duration(seconds: 3);
 }

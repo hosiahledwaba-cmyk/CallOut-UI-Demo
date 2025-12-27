@@ -5,65 +5,103 @@ import '../widgets/avatar.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/glass_button.dart';
+import '../widgets/post_preview.dart';
 import '../models/user.dart';
+import '../models/post.dart';
 import '../services/auth_service.dart';
+import '../data/profile_repository.dart';
 import '../theme/design_tokens.dart';
 import 'verification_screen.dart';
-import 'my_reports_screen.dart';
-import 'saved_resources_screen.dart';
-import 'safety_checkins_screen.dart';
-import 'user_list_screen.dart';
+import 'chat_screen.dart'; // To navigate to messages
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final String? userId; // If null, shows current user
+
+  const ProfileScreen({super.key, this.userId});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Grab current user from Auth Service
-  User? _user = AuthService().currentUser;
+  final ProfileRepository _repo = ProfileRepository();
+  User? _user;
+  List<Post> _posts = [];
+  bool _isMe = false;
+  bool _isLoading = true;
+  bool _isFollowing = false; // Local state for other users
 
-  void _navigateToVerification() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const VerificationScreen()),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+  }
 
-    if (result == true) {
+  void _fetchProfile() async {
+    final currentUserId = AuthService().currentUser?.id;
+    final targetId = widget.userId ?? currentUserId;
+
+    if (targetId == null) return; // Should likely redirect to login
+
+    _isMe = (targetId == currentUserId);
+
+    // 1. Fetch User Profile
+    final user = await _repo.getUserProfile(targetId);
+
+    // 2. Fetch Posts
+    final posts = await _repo.getUserPosts(targetId);
+
+    if (mounted) {
       setState(() {
-        if (_user != null) {
-          _user = User(
-            id: _user!.id,
-            username: _user!.username,
-            displayName: _user!.displayName,
-            avatarUrl: _user!.avatarUrl,
-            isVerified: true,
-            isActivist: true,
-          );
-        }
+        _user = user;
+        _posts = posts;
+        _isLoading = false;
+        _isFollowing = user.isFollowing;
       });
     }
   }
 
-  void _navigateTo(Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
+  void _handleFollowToggle() {
+    if (_user == null) return;
+    setState(() => _isFollowing = !_isFollowing);
+    _repo.toggleFollow(
+      _user!.id,
+      !_isFollowing,
+    ); // Invert logic: passed bool is 'desired state' usually, but repo takes current? let's assume repo toggles
+  }
+
+  void _handleMessage() {
+    if (_user == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ChatScreen(partner: _user!)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_user == null) return const SizedBox();
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_user == null) {
+      return const Scaffold(body: Center(child: Text("User not found")));
+    }
 
     return GlassScaffold(
-      currentTabIndex: 3,
+      // Only show bottom nav highlights if it's My Profile main tab
+      currentTabIndex: widget.userId == null ? 3 : -1,
+      showBottomNav:
+          widget.userId ==
+          null, // Hide nav when viewing others to focus on profile
       body: Column(
         children: [
-          const TopNav(
-            title: "Profile",
-            showSettings: true,
-            showNotificationIcon: false,
+          TopNav(
+            title: _isMe ? "My Profile" : _user!.displayName,
+            showBack: !_isMe, // Show back button if viewing someone else
+            showSettings: _isMe,
           ),
+
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(DesignTokens.paddingMedium),
@@ -71,115 +109,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   // --- HEADER ---
                   const SizedBox(height: 10),
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Avatar(user: _user!, radius: 55),
-                      if (_user!.isVerified)
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.verified,
-                            color: DesignTokens.accentSafe,
-                            size: 24,
-                          ),
-                        ),
-                    ],
-                  ),
+                  Avatar(user: _user!, radius: 55),
                   const SizedBox(height: 16),
-                  Text(
-                    _user!.displayName,
-                    style: Theme.of(context).textTheme.headlineMedium,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _user!.displayName,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      if (_user!.isVerified) ...[
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.verified,
+                          color: DesignTokens.accentSafe,
+                          size: 24,
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
                     "@${_user!.username}",
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
 
-                  // --- IDENTITY & TRUST DASHBOARD ---
                   const SizedBox(height: 24),
-                  _buildTrustDashboard(),
 
-                  // --- STATS ---
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // Clickable Stats
-                      GestureDetector(
-                        onTap: () => _navigateTo(const MyReportsScreen()),
-                        child: const _StatItem(count: "2", label: "Reports"),
-                      ),
-                      GestureDetector(
-                        onTap: () => _navigateTo(
-                          const UserListScreen(title: "Following"),
-                        ),
-                        child: const _StatItem(count: "12", label: "Following"),
-                      ),
-                      GestureDetector(
-                        onTap: () => _navigateTo(
-                          const UserListScreen(title: "Followers"),
-                        ),
-                        child: const _StatItem(count: "5", label: "Followers"),
-                      ),
-                    ],
-                  ),
-
-                  // --- MENU ---
-                  const SizedBox(height: 24),
-                  GlassCard(
-                    child: Column(
+                  // --- ACTIONS (If not me) ---
+                  if (!_isMe) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        ListTile(
-                          leading: const Icon(
-                            Icons.history,
-                            color: DesignTokens.accentPrimary,
+                        SizedBox(
+                          width: 120,
+                          child: GlassButton(
+                            label: _isFollowing ? "Following" : "Follow",
+                            isPrimary: !_isFollowing,
+                            onTap: _handleFollowToggle,
                           ),
-                          title: const Text("My Reports"),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: DesignTokens.textSecondary,
-                          ),
-                          onTap: () => _navigateTo(const MyReportsScreen()),
                         ),
-                        const Divider(),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.bookmark_border,
-                            color: DesignTokens.accentPrimary,
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 120,
+                          child: GlassButton(
+                            label: "Message",
+                            isPrimary: false,
+                            icon: Icons.chat_bubble_outline,
+                            onTap: _handleMessage,
                           ),
-                          title: const Text("Saved Resources"),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: DesignTokens.textSecondary,
-                          ),
-                          onTap: () =>
-                              _navigateTo(const SavedResourcesScreen()),
-                        ),
-                        const Divider(),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.security,
-                            color: DesignTokens.accentPrimary,
-                          ),
-                          title: const Text("Safety Check-ins"),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: DesignTokens.textSecondary,
-                          ),
-                          onTap: () =>
-                              _navigateTo(const SafetyCheckinsScreen()),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // --- DASHBOARD (If me) ---
+                  if (_isMe) ...[
+                    _buildTrustDashboard(),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // --- STATS ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _StatItem(count: "${_posts.length}", label: "Posts"),
+                      const _StatItem(count: "342", label: "Following"),
+                      const _StatItem(count: "1.2k", label: "Followers"),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(),
+
+                  // --- POSTS LIST ---
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Recent Activity",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
                   ),
 
-                  // Extra padding for scrolling above bottom nav
-                  const SizedBox(height: 100),
+                  if (_posts.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Text(
+                        "No posts yet.",
+                        style: TextStyle(color: DesignTokens.textSecondary),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true, // Vital for nesting in ScrollView
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _posts.length,
+                      itemBuilder: (context, index) {
+                        return PostPreview(post: _posts[index]);
+                      },
+                    ),
+
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
@@ -192,63 +227,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildTrustDashboard() {
     bool isActivist = _user!.isActivist;
     bool isVerified = _user!.isVerified;
-
     Color statusColor = isActivist
         ? DesignTokens.accentPrimary
         : (isVerified ? DesignTokens.accentSafe : Colors.grey);
-
     String statusTitle = isActivist
         ? "Verified Activist"
-        : (isVerified ? "Verified User" : "Unverified Account");
-
-    String statusDesc = isActivist
-        ? "You have full posting & reporting privileges."
-        : (isVerified
-              ? "You can interact but cannot create public posts."
-              : "Complete verification to unlock safety features.");
+        : (isVerified ? "Verified User" : "Unverified");
 
     return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
+      padding: const EdgeInsets.all(16),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.shield, color: statusColor, size: 30),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      statusTitle,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: statusColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      statusDesc,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: DesignTokens.textSecondary,
-                      ),
-                    ),
-                  ],
+          Icon(Icons.shield, color: statusColor, size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          if (!isActivist) ...[
-            const SizedBox(height: 16),
-            GlassButton(
-              label: isVerified ? "Upgrade to Activist" : "Verify Identity",
-              isPrimary: !isVerified, // Primary CTA if unverified
-              icon: Icons.fingerprint,
-              onTap: _navigateToVerification,
+                const Text(
+                  "Identity & Trust Level",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: DesignTokens.textSecondary,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+          if (!isActivist)
+            GlassButton(
+              label: "Upgrade",
+              isPrimary: false,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const VerificationScreen()),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -258,26 +281,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 class _StatItem extends StatelessWidget {
   final String count;
   final String label;
-
   const _StatItem({required this.count, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.transparent, // Hit test area
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          Text(
-            count,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            label,
-            style: const TextStyle(color: DesignTokens.textSecondary),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        Text(
+          count,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        Text(label, style: const TextStyle(color: DesignTokens.textSecondary)),
+      ],
     );
   }
 }

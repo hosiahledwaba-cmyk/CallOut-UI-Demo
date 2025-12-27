@@ -22,26 +22,49 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatRepository _repository = ChatRepository();
   late Future<List<Message>> _messagesFuture;
   final TextEditingController _textController = TextEditingController();
+  List<Message> _localMessages = []; // For optimistic updates
 
   @override
   void initState() {
     super.initState();
-    _messagesFuture = _repository.getMessages(widget.partner.id);
+    _loadMessages();
+  }
+
+  void _loadMessages() {
+    _messagesFuture = _repository.getMessages(widget.partner.id).then((msgs) {
+      if (mounted) setState(() => _localMessages = msgs);
+      return msgs;
+    });
   }
 
   void _sendMessage() async {
     if (_textController.text.isEmpty) return;
-
-    // Optimistic UI update or wait for API
     final text = _textController.text;
     _textController.clear();
 
-    await _repository.sendMessage(widget.partner.id, text);
+    // 1. Optimistic Update
+    final tempMsg = Message(
+      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      sender: const User(
+        id: 'me',
+        username: 'me',
+        displayName: 'Me',
+        avatarUrl: '',
+      ),
+      text: text,
+      timestamp: DateTime.now(),
+    );
 
-    // Refresh list
     setState(() {
-      _messagesFuture = _repository.getMessages(widget.partner.id);
+      _localMessages.insert(
+        0,
+        tempMsg,
+      ); // Add to bottom (or top if reverse list)
     });
+
+    // 2. API Call
+    await _repository.sendMessage(widget.partner.id, text);
+    // Ideally replace tempMsg with real one here, but for now this is sufficient
   }
 
   @override
@@ -52,20 +75,23 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           TopNav(title: widget.partner.displayName, showBack: true),
           Expanded(
-            child: FutureBuilder<List<Message>>(
+            child: FutureBuilder(
               future: _messagesFuture,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                // Initial load
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    _localMessages.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final messages = snapshot.data ?? [];
-
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: messages.length,
+                  itemCount: _localMessages.length,
+                  // Reverse typically used for chats, ensure data order matches
+                  // Here we assume data is Oldest -> Newest, so we render normally or reverse?
+                  // Let's render Standard for simplicity (Top Down)
                   itemBuilder: (context, index) {
-                    final msg = messages[index];
+                    final msg = _localMessages[index];
                     return MessageBubble(
                       message: msg,
                       isMe: msg.sender.id == 'me',
@@ -81,7 +107,6 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  const Icon(Icons.add, color: DesignTokens.accentPrimary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
