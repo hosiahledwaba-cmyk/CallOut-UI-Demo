@@ -37,4 +37,21 @@ class Message {
       'is_read': isRead,
     };
   }
+
+  // Added copyWith for optimistic updates (e.g. marking as read locally)
+  Message copyWith({
+    String? id,
+    User? sender,
+    String? text,
+    DateTime? timestamp,
+    bool? isRead,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      sender: sender ?? this.sender,
+      text: text ?? this.text,
+      timestamp: timestamp ?? this.timestamp,
+      isRead: isRead ?? this.isRead,
+    );
+  }
 }

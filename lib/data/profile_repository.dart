@@ -39,4 +39,21 @@ class ProfileRepository {
       return {"posts": "12", "following": "340", "followers": "120"};
     }
   }
+
+  Future<bool> toggleFollow(String userId, bool isFollowing) async {
+    final url = ApiConfig.userFollow.replaceAll('{id}', userId);
+    try {
+      final response = isFollowing
+          ? await http
+                .delete(Uri.parse(url), headers: ApiConfig.headers)
+                .timeout(ApiConfig.timeout)
+          : await http
+                .post(Uri.parse(url), headers: ApiConfig.headers)
+                .timeout(ApiConfig.timeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return true; // Optimistic success
+    }
+  }
 }

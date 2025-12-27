@@ -4,9 +4,10 @@ class User {
   final String username;
   final String displayName;
   final String avatarUrl;
-  final bool isVerified; // Identity verified (Blue tick)
-  final bool isActivist; // Permission to post (Admin granted)
+  final bool isVerified;
+  final bool isActivist;
   final bool isAnonymous;
+  final bool isFollowing; // New field
 
   const User({
     required this.id,
@@ -16,6 +17,7 @@ class User {
     this.isVerified = false,
     this.isActivist = false,
     this.isAnonymous = false,
+    this.isFollowing = false, // Default
   });
 
   static const User anonymous = User(
@@ -35,6 +37,21 @@ class User {
       isVerified: json['is_verified'] ?? false,
       isActivist: json['is_activist'] ?? false,
       isAnonymous: json['is_anonymous'] ?? false,
+      isFollowing: json['is_following'] ?? false,
+    );
+  }
+
+  // CopyWith for optimistic updates
+  User copyWith({bool? isFollowing}) {
+    return User(
+      id: id,
+      username: username,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+      isVerified: isVerified,
+      isActivist: isActivist,
+      isAnonymous: isAnonymous,
+      isFollowing: isFollowing ?? this.isFollowing,
     );
   }
 
@@ -47,6 +64,7 @@ class User {
       'is_verified': isVerified,
       'is_activist': isActivist,
       'is_anonymous': isAnonymous,
+      'is_following': isFollowing,
     };
   }
 }

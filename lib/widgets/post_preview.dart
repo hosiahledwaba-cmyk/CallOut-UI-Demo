@@ -6,32 +6,72 @@ import 'glass_card.dart';
 import 'avatar.dart';
 import '../theme/design_tokens.dart';
 import '../screens/post_detail_screen.dart';
+import '../data/feed_repository.dart';
 
-class PostPreview extends StatelessWidget {
+class PostPreview extends StatefulWidget {
   final Post post;
 
   const PostPreview({super.key, required this.post});
+
+  @override
+  State<PostPreview> createState() => _PostPreviewState();
+}
+
+class _PostPreviewState extends State<PostPreview> {
+  late Post _post;
+  final FeedRepository _repo = FeedRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _post = widget.post;
+  }
+
+  void _handleLike() {
+    final wasLiked = _post.isLiked;
+    // Optimistic Update
+    setState(() {
+      _post = _post.copyWith(
+        isLiked: !wasLiked,
+        likes: _post.likes + (wasLiked ? -1 : 1),
+      );
+    });
+
+    // API Call
+    _repo.likePost(_post.id, !wasLiked);
+  }
+
+  void _handleShare() {
+    _repo.sharePost(_post.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Post shared to clipboard!"),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: DesignTokens.paddingMedium),
       child: GlassCard(
-        isAlert: post.isEmergency,
+        isAlert: _post.isEmergency,
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PostDetailScreen(post: post),
+              builder: (context) => PostDetailScreen(post: _post),
             ),
           );
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Row(
               children: [
-                Avatar(user: post.author),
+                Avatar(user: _post.author),
                 const SizedBox(width: DesignTokens.paddingSmall),
                 Expanded(
                   child: Column(
@@ -40,13 +80,13 @@ class PostPreview extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            post.author.displayName,
+                            _post.author.displayName,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
                           ),
-                          if (post.author.isVerified) ...[
+                          if (_post.author.isVerified) ...[
                             const SizedBox(width: 4),
                             const Icon(
                               Icons.verified,
@@ -57,55 +97,71 @@ class PostPreview extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        "@${post.author.username} • 2h ago",
+                        "@${_post.author.username}",
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
                   ),
                 ),
-                if (post.isEmergency)
+                if (_post.isEmergency)
                   const Icon(
                     Icons.warning_amber_rounded,
                     color: DesignTokens.accentAlert,
                   ),
               ],
             ),
+
+            // Content
             const SizedBox(height: DesignTokens.paddingMedium),
-            Text(post.content, style: Theme.of(context).textTheme.bodyLarge),
-            if (post.imageUrl != null) ...[
+            Text(_post.content, style: Theme.of(context).textTheme.bodyLarge),
+
+            if (_post.imageUrl != null) ...[
               const SizedBox(height: DesignTokens.paddingMedium),
               ClipRRect(
                 borderRadius: BorderRadius.circular(
                   DesignTokens.borderRadiusSmall,
                 ),
                 child: Image.network(
-                  post.imageUrl!,
+                  _post.imageUrl!,
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
-                    height: 200,
-                    color: Colors.white24,
-                    child: const Center(child: Icon(Icons.broken_image)),
-                  ),
+                  errorBuilder: (c, e, s) => const SizedBox(),
                 ),
               ),
             ],
+
+            // Actions
             const SizedBox(height: DesignTokens.paddingMedium),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _InteractionButton(
-                  icon: CupertinoIcons.heart,
-                  label: "${post.likes}",
+                  icon: _post.isLiked
+                      ? CupertinoIcons.heart_fill
+                      : CupertinoIcons.heart,
+                  color: _post.isLiked
+                      ? DesignTokens.accentAlert
+                      : DesignTokens.textSecondary,
+                  label: "${_post.likes}",
+                  onTap: _handleLike,
                 ),
                 _InteractionButton(
                   icon: CupertinoIcons.chat_bubble,
-                  label: "${post.comments}",
+                  label: "${_post.comments}",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PostDetailScreen(post: _post),
+                      ),
+                    );
+                  },
                 ),
-                const _InteractionButton(
+                _InteractionButton(
                   icon: CupertinoIcons.share,
                   label: "Share",
+                  onTap: _handleShare,
                 ),
               ],
             ),
@@ -119,17 +175,30 @@ class PostPreview extends StatelessWidget {
 class _InteractionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
+  final Color color;
 
-  const _InteractionButton({required this.icon, required this.label});
+  const _InteractionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color = DesignTokens.textSecondary,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: DesignTokens.textSecondary),
-        const SizedBox(width: 4),
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-      ],
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 4),
+            Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -10,6 +10,7 @@ class Post {
   final int likes;
   final int comments;
   final bool isEmergency;
+  final bool isLiked; // New field
 
   const Post({
     required this.id,
@@ -20,6 +21,7 @@ class Post {
     this.likes = 0,
     this.comments = 0,
     this.isEmergency = false,
+    this.isLiked = false, // Default to false
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -34,19 +36,22 @@ class Post {
       likes: json['likes_count'] ?? 0,
       comments: json['comments_count'] ?? 0,
       isEmergency: json['is_emergency'] ?? false,
+      isLiked: json['is_liked'] ?? false,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'author': author.toJson(),
-      'content': content,
-      'image_url': imageUrl,
-      'created_at': timestamp.toIso8601String(),
-      'likes_count': likes,
-      'comments_count': comments,
-      'is_emergency': isEmergency,
-    };
+  // CopyWith for optimistic updates
+  Post copyWith({int? likes, bool? isLiked, int? comments}) {
+    return Post(
+      id: id,
+      author: author,
+      content: content,
+      imageUrl: imageUrl,
+      timestamp: timestamp,
+      likes: likes ?? this.likes,
+      comments: comments ?? this.comments,
+      isEmergency: isEmergency,
+      isLiked: isLiked ?? this.isLiked,
+    );
   }
 }

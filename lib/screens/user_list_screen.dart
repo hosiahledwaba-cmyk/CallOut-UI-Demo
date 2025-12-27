@@ -4,11 +4,12 @@ import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glass_button.dart';
-import '../widgets/glass_text_field.dart'; // Reused for search input style if needed, or GlassSearchBar
 import '../widgets/search_bar.dart';
 import '../widgets/avatar.dart';
 import '../models/user.dart';
 import '../theme/design_tokens.dart';
+import '../data/search_repository.dart';
+import '../data/profile_repository.dart';
 
 class UserListScreen extends StatefulWidget {
   final String title;
@@ -20,63 +21,30 @@ class UserListScreen extends StatefulWidget {
 }
 
 class _UserListScreenState extends State<UserListScreen> {
-  // Mock Data
-  final List<User> _allUsers = [
-    const User(
-      id: 'u1',
-      username: 'sarah_j',
-      displayName: 'Sarah Jenkins',
-      avatarUrl: 'https://i.pravatar.cc/150?u=1',
-      isVerified: true,
-    ),
-    const User(
-      id: 'u2',
-      username: 'safe_zone',
-      displayName: 'Safe Zone NGO',
-      avatarUrl: 'https://i.pravatar.cc/150?u=2',
-      isVerified: true,
-      isActivist: true,
-    ),
-    const User(
-      id: 'u3',
-      username: 'dr_emily',
-      displayName: 'Dr. Emily',
-      avatarUrl: 'https://i.pravatar.cc/150?u=3',
-      isVerified: true,
-    ),
-    const User(
-      id: 'u5',
-      username: 'alex_m',
-      displayName: 'Alex M.',
-      avatarUrl: 'https://i.pravatar.cc/150?u=5',
-    ),
-    const User(
-      id: 'u6',
-      username: 'jessica_p',
-      displayName: 'Jessica P.',
-      avatarUrl: 'https://i.pravatar.cc/150?u=6',
-    ),
-    const User(
-      id: 'u7',
-      username: 'comm_watch',
-      displayName: 'Community Watch',
-      avatarUrl: 'https://i.pravatar.cc/150?u=7',
-      isVerified: true,
-    ),
-  ];
+  final SearchRepository _searchRepo = SearchRepository();
 
+  // Future to handle Async Data (API or Mock)
+  late Future<List<User>> _usersFuture;
+  List<User> _allUsers = [];
   List<User> _filteredUsers = [];
-  String _searchQuery = "";
 
   @override
   void initState() {
     super.initState();
-    _filteredUsers = _allUsers;
+    // Fetch users (Simulating getting followers/following list)
+    _usersFuture = _searchRepo.searchUsers("").then((users) {
+      if (mounted) {
+        setState(() {
+          _allUsers = users;
+          _filteredUsers = users;
+        });
+      }
+      return users;
+    });
   }
 
   void _onSearch(String query) {
     setState(() {
-      _searchQuery = query;
       if (query.isEmpty) {
         _filteredUsers = _allUsers;
       } else {
@@ -107,15 +75,30 @@ class _UserListScreenState extends State<UserListScreen> {
 
           // User List
           Expanded(
-            child: _filteredUsers.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(DesignTokens.paddingMedium),
-                    itemCount: _filteredUsers.length,
-                    itemBuilder: (context, index) {
-                      return _UserListItem(user: _filteredUsers[index]);
-                    },
-                  ),
+            child: FutureBuilder<List<User>>(
+              future: _usersFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: DesignTokens.accentPrimary,
+                    ),
+                  );
+                }
+
+                if (_filteredUsers.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(DesignTokens.paddingMedium),
+                  itemCount: _filteredUsers.length,
+                  itemBuilder: (context, index) {
+                    return _UserListItem(user: _filteredUsers[index]);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -157,7 +140,24 @@ class _UserListItem extends StatefulWidget {
 }
 
 class _UserListItemState extends State<_UserListItem> {
-  bool _isFollowing = false; // Mock local state
+  final ProfileRepository _profileRepo = ProfileRepository();
+  late bool _isFollowing;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFollowing = widget.user.isFollowing;
+  }
+
+  void _toggleFollow() {
+    // 1. Optimistic UI Update
+    setState(() {
+      _isFollowing = !_isFollowing;
+    });
+
+    // 2. API Call (Background)
+    _profileRepo.toggleFollow(widget.user.id, _isFollowing);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,11 +228,7 @@ class _UserListItemState extends State<_UserListItem> {
                 label: _isFollowing ? "Following" : "Follow",
                 isPrimary:
                     !_isFollowing, // Filled if not following, Glass if following
-                onTap: () {
-                  setState(() {
-                    _isFollowing = !_isFollowing;
-                  });
-                },
+                onTap: _toggleFollow,
               ),
             ),
           ],

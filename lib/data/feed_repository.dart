@@ -62,6 +62,66 @@ class FeedRepository {
     }
   }
 
+  Future<bool> likePost(String postId, bool isLiked) async {
+    final url = ApiConfig.postLike.replaceAll('{id}', postId);
+    try {
+      final response = isLiked
+          ? await http
+                .post(Uri.parse(url), headers: ApiConfig.headers)
+                .timeout(ApiConfig.timeout)
+          : await http
+                .delete(Uri.parse(url), headers: ApiConfig.headers)
+                .timeout(ApiConfig.timeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return true; // Optimistic success for mock
+    }
+  }
+
+  Future<bool> sharePost(String postId) async {
+    final url = ApiConfig.postShare.replaceAll('{id}', postId);
+    try {
+      await http
+          .post(Uri.parse(url), headers: ApiConfig.headers)
+          .timeout(ApiConfig.timeout);
+      return true;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  Future<Comment?> addComment(String postId, String text) async {
+    final url = ApiConfig.postComment.replaceAll('{id}', postId);
+    try {
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: ApiConfig.headers,
+            body: jsonEncode({'text': text}),
+          )
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 201) {
+        return Comment.fromJson(jsonDecode(response.body));
+      }
+    } catch (e) {
+      // Mock return
+      return Comment(
+        id: 'c_${DateTime.now().millisecondsSinceEpoch}',
+        author: const User(
+          id: 'me',
+          username: 'me',
+          displayName: 'Me',
+          avatarUrl: '',
+        ),
+        text: text,
+        timestamp: DateTime.now(),
+      );
+    }
+    return null;
+  }
+
   List<Post> _getMockPosts() {
     // Reusing previous mock logic for brevity
     final User user1 = const User(

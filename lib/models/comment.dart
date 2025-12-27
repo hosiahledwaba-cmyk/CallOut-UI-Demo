@@ -31,4 +31,19 @@ class Comment {
     'text': text,
     'created_at': timestamp.toIso8601String(),
   };
+
+  // Added copyWith for consistency
+  Comment copyWith({
+    String? id,
+    User? author,
+    String? text,
+    DateTime? timestamp,
+  }) {
+    return Comment(
+      id: id ?? this.id,
+      author: author ?? this.author,
+      text: text ?? this.text,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
 }
