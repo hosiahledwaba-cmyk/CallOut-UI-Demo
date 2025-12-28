@@ -4,11 +4,12 @@ import 'package:flutter/cupertino.dart';
 import '../models/post.dart';
 import 'glass_card.dart';
 import 'avatar.dart';
+import 'cached_base64_image.dart'; // Ensure this file exists in lib/widgets/
 import '../theme/design_tokens.dart';
 import '../screens/post_detail_screen.dart';
 import '../screens/profile_screen.dart';
 import '../data/feed_repository.dart';
-import '../utils/time_formatter.dart'; // Ensure you created this file
+import '../utils/time_formatter.dart';
 
 class PostPreview extends StatefulWidget {
   final Post post;
@@ -137,11 +138,32 @@ class _PostPreviewState extends State<PostPreview> {
               ),
             ),
 
-            // Content
+            // Content Text
             const SizedBox(height: DesignTokens.paddingMedium),
             Text(_post.content, style: Theme.of(context).textTheme.bodyLarge),
 
-            if (_post.imageUrl != null) ...[
+            // MEDIA RENDERING
+            // Priority 1: Check for Database Media (mediaIds)
+            if (_post.mediaIds.isNotEmpty) ...[
+              const SizedBox(height: DesignTokens.paddingMedium),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(
+                  DesignTokens.borderRadiusSmall,
+                ),
+                child: SizedBox(
+                  height: 200, // FORCE HEIGHT
+                  width: double.infinity, // FORCE WIDTH
+                  child: CachedBase64Image(
+                    mediaId: _post.mediaIds.first,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ]
+            // Priority 2: Check for Legacy/External URL
+            else if (_post.imageUrl != null && _post.imageUrl!.isNotEmpty) ...[
               const SizedBox(height: DesignTokens.paddingMedium),
               ClipRRect(
                 borderRadius: BorderRadius.circular(
@@ -157,7 +179,7 @@ class _PostPreviewState extends State<PostPreview> {
               ),
             ],
 
-            // Actions
+            // Interaction Buttons
             const SizedBox(height: DesignTokens.paddingMedium),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

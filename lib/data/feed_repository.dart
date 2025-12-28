@@ -1,21 +1,19 @@
 // lib/data/feed_repository.dart
+import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/post.dart';
 import '../models/user.dart';
 import '../models/comment.dart';
 import 'api_config.dart';
+import '../services/media_service.dart'; // Import Media Service
 
 class FeedRepository {
   // GET FEED
   Future<List<Post>> getPosts() async {
     try {
       final response = await http
-          .get(
-            Uri.parse(ApiConfig.feed),
-            headers:
-                ApiConfig.headers, // Headers must include Auth Token usually
-          )
+          .get(Uri.parse(ApiConfig.feed), headers: ApiConfig.headers)
           .timeout(ApiConfig.timeout);
 
       if (response.statusCode == 200) {
@@ -29,13 +27,15 @@ class FeedRepository {
     }
   }
 
-  // CREATE POST
+  // CREATE POST (2-Step Process for Media)
   Future<bool> createPost(
     String content,
     bool isAnonymous, {
     String? imageUrl,
+    File? imageFile, // New optional parameter
   }) async {
     try {
+      // Step 1: Create the Post metadata
       final response = await http
           .post(
             Uri.parse(ApiConfig.posts),
@@ -48,8 +48,25 @@ class FeedRepository {
           )
           .timeout(ApiConfig.timeout);
 
-      // 201 Created or 200 OK are valid successes
-      return response.statusCode == 201 || response.statusCode == 200;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        if (imageFile != null) {
+          final responseData = jsonDecode(response.body);
+
+          // DEBUG PRINT: Check this in your Flutter console
+          print("CREATE POST RESPONSE: $responseData");
+
+          final String? postId = responseData['id'];
+
+          if (postId != null) {
+            print("UPLOADING MEDIA TO POST: $postId");
+            await MediaService().uploadMedia(postId, imageFile);
+          } else {
+            print("ERROR: Post ID was null, skipping media upload");
+          }
+        }
+        return true;
+      }
+      return false;
     } catch (e) {
       // For Mock Mode: Simulate success
       await Future.delayed(const Duration(seconds: 1));
@@ -119,7 +136,6 @@ class FeedRepository {
         return Comment.fromJson(jsonDecode(response.body));
       }
     } catch (e) {
-      // Mock return
       return Comment(
         id: 'c_${DateTime.now().millisecondsSinceEpoch}',
         author: const User(

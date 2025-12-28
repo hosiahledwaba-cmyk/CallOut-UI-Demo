@@ -1,5 +1,7 @@
 // lib/screens/create_post_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/glass_button.dart';
@@ -17,27 +19,45 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _contentController = TextEditingController();
   final FeedRepository _repository = FeedRepository();
+  final ImagePicker _picker = ImagePicker();
 
+  File? _selectedImage;
   bool isAnonymous = false;
   bool _isPosting = false;
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        imageQuality: 85,
+      );
+      if (image != null) {
+        setState(() => _selectedImage = File(image.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Could not pick image.")));
+    }
+  }
+
   void _handlePost() async {
-    if (_contentController.text.trim().isEmpty) return;
+    if (_contentController.text.trim().isEmpty && _selectedImage == null)
+      return;
 
     setState(() => _isPosting = true);
 
-    // The repository handles the API call.
-    // The backend uses the Auth Token to identify the user,
-    // OR uses the 'isAnonymous' flag to mask the identity.
     final success = await _repository.createPost(
       _contentController.text,
       isAnonymous,
+      imageFile: _selectedImage, // Pass the file here
     );
 
     setState(() => _isPosting = false);
 
     if (success && mounted) {
-      Navigator.pop(context, true); // Return 'true' to indicate refresh needed
+      Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Post created successfully"),
@@ -96,7 +116,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               padding: const EdgeInsets.all(DesignTokens.paddingMedium),
               child: Column(
                 children: [
-                  // Anonymous Toggle
                   GlassCard(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -141,7 +160,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Text Input
                   GlassCard(
                     height: 200,
                     padding: const EdgeInsets.all(16),
@@ -158,17 +176,56 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     ),
                   ),
 
+                  if (_selectedImage != null) ...[
+                    const SizedBox(height: 16),
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            DesignTokens.borderRadiusSmall,
+                          ),
+                          child: Image.file(
+                            _selectedImage!,
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedImage = null),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
 
-                  // Media Buttons
                   Row(
                     children: [
                       Expanded(
                         child: GlassButton(
-                          label: "Photo",
+                          label: _selectedImage == null
+                              ? "Photo"
+                              : "Change Photo",
                           icon: Icons.camera_alt,
                           isPrimary: false,
-                          onTap: () {}, // Future: Image Picker
+                          onTap: _pickImage,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -177,7 +234,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           label: "Location",
                           icon: Icons.location_on,
                           isPrimary: false,
-                          onTap: () {}, // Future: Geolocator
+                          onTap: () {},
                         ),
                       ),
                     ],

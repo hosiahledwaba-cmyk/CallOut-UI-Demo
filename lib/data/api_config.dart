@@ -20,6 +20,10 @@ class ApiConfig {
   static const String postComment = "$baseUrl/posts/{id}/comments";
   static const String postShare = "$baseUrl/posts/{id}/share";
 
+  // --- MEDIA ENDPOINTS (Missing) ---
+  static const String media = "$baseUrl/media"; // POST
+  static const String mediaDownload = "$baseUrl/media/{id}"; // GET
+
   // Users
   static const String users = "$baseUrl/users"; // GET list
   static const String userProfile =

@@ -8,9 +8,10 @@ import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/avatar.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/cached_base64_image.dart'; // Ensure imported
 import '../theme/design_tokens.dart';
 import 'profile_screen.dart';
-import '../utils/time_formatter.dart'; // Ensure you created this file
+import '../utils/time_formatter.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final Post post;
@@ -68,7 +69,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       showBottomNav: false,
       body: Stack(
         children: [
-          // Content
+          // Scrollable Content
           Column(
             children: [
               const TopNav(title: "Post", showBack: true),
@@ -77,7 +78,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   padding: const EdgeInsets.all(DesignTokens.paddingMedium),
                   child: Column(
                     children: [
-                      // Main Post
+                      // Main Post Card
                       GlassCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,13 +114,31 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               widget.post.content,
                               style: const TextStyle(fontSize: 18, height: 1.5),
                             ),
-                            if (widget.post.imageUrl != null) ...[
+
+                            // MEDIA RENDERING
+                            if (widget.post.mediaIds.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: CachedBase64Image(
+                                  mediaId: widget.post.mediaIds.first,
+                                  // FIX: Provide explicit height/width for detail view
+                                  // or double.infinity width so it doesn't collapse
+                                  height: 400,
+                                  width: double.infinity,
+                                  fit: BoxFit
+                                      .cover, // or contain based on preference
+                                ),
+                              ),
+                            ] else if (widget.post.imageUrl != null &&
+                                widget.post.imageUrl!.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: Image.network(widget.post.imageUrl!),
                               ),
                             ],
+
                             const SizedBox(height: 16),
                             const Divider(),
                             Text(
@@ -151,6 +170,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           );
                         },
                       ),
+                      // Space for floating input
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -250,7 +270,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ),
                         ),
                       ),
-                      // AUDIT: Comment Timestamp
+                      // AUDIT: Relative Timestamp on Comment
                       Text(
                         TimeFormatter.formatRelative(comment.timestamp),
                         style: const TextStyle(
