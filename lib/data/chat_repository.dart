@@ -6,6 +6,7 @@ import '../models/user.dart';
 import 'api_config.dart';
 
 class ChatRepository {
+  // 1. Get list of active chats (For now, just a contact list)
   Future<List<User>> getActiveChats() async {
     try {
       final response = await http
@@ -16,25 +17,18 @@ class ChatRepository {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => User.fromJson(e)).toList();
       }
-      throw Exception('Failed');
+      throw Exception('Failed to load chats');
     } catch (e) {
-      // Mock Data
-      return [
-        const User(
-          id: 'u3',
-          username: 'dr_emily',
-          displayName: 'Dr. Emily',
-          avatarUrl: 'https://i.pravatar.cc/150?u=3',
-          isVerified: true,
-        ),
-        User.anonymous,
-      ];
+      return [];
     }
   }
 
-  Future<List<Message>> getMessages(String chatId) async {
+  // 2. Get Messages for a specific partner
+  // Note: 'chatId' argument here is actually the PARTNER'S USER ID
+  Future<List<Message>> getMessages(String partnerId) async {
     try {
-      final url = ApiConfig.chatMessages.replaceAll('{id}', chatId);
+      // The backend expects /chats/{partner_id}/messages
+      final url = ApiConfig.chatMessages.replaceAll('{id}', partnerId);
 
       final response = await http
           .get(Uri.parse(url), headers: ApiConfig.headers)
@@ -44,48 +38,16 @@ class ChatRepository {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => Message.fromJson(e)).toList();
       }
-      throw Exception('Failed');
+      throw Exception('Failed to load messages');
     } catch (e) {
-      // Mock Conversation
-      final partner = const User(
-        id: 'u3',
-        username: 'dr_emily',
-        displayName: 'Dr. Emily',
-        avatarUrl: 'https://i.pravatar.cc/150?u=3',
-      );
-      final me = const User(
-        id: 'me',
-        username: 'me',
-        displayName: 'Me',
-        avatarUrl: '',
-      );
-
-      return [
-        Message(
-          id: 'm1',
-          sender: partner,
-          text: "Hello! How can I help?",
-          timestamp: DateTime.now().subtract(const Duration(days: 1)),
-        ),
-        Message(
-          id: 'm2',
-          sender: me,
-          text: "Looking for shelter info.",
-          timestamp: DateTime.now().subtract(const Duration(hours: 20)),
-        ),
-        Message(
-          id: 'm3',
-          sender: partner,
-          text: "I can help with that.",
-          timestamp: DateTime.now().subtract(const Duration(hours: 19)),
-        ),
-      ];
+      return [];
     }
   }
 
-  Future<Message?> sendMessage(String chatId, String text) async {
+  // 3. Send Message
+  Future<Message?> sendMessage(String partnerId, String text) async {
     try {
-      final url = ApiConfig.chatMessages.replaceAll('{id}', chatId);
+      final url = ApiConfig.chatMessages.replaceAll('{id}', partnerId);
 
       final response = await http
           .post(
@@ -95,21 +57,12 @@ class ChatRepository {
           )
           .timeout(ApiConfig.timeout);
 
-      if (response.statusCode == 201)
+      if (response.statusCode == 201) {
         return Message.fromJson(jsonDecode(response.body));
+      }
     } catch (e) {
-      // Optimistic Mock Response
-      return Message(
-        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-        sender: const User(
-          id: 'me',
-          username: 'me',
-          displayName: 'Me',
-          avatarUrl: '',
-        ),
-        text: text,
-        timestamp: DateTime.now(),
-      );
+      // Optimistic response for better UX even if offline/failed
+      return null;
     }
     return null;
   }

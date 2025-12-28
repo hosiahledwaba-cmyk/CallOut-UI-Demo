@@ -5,9 +5,10 @@ import '../models/message.dart';
 import '../data/chat_repository.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
-import '../widgets/message_bubble.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/message_bubble.dart'; // Ensure you have this widget or replace with Text
 import '../theme/design_tokens.dart';
+import '../services/auth_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final User partner;
@@ -20,51 +21,66 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final ChatRepository _repository = ChatRepository();
-  late Future<List<Message>> _messagesFuture;
   final TextEditingController _textController = TextEditingController();
-  List<Message> _localMessages = []; // For optimistic updates
+
+  List<Message> _localMessages = [];
+  bool _isLoading = true;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
+    _currentUserId = AuthService().currentUser?.id;
     _loadMessages();
   }
 
-  void _loadMessages() {
-    _messagesFuture = _repository.getMessages(widget.partner.id).then((msgs) {
-      if (mounted) setState(() => _localMessages = msgs);
-      return msgs;
-    });
+  void _loadMessages() async {
+    // Pass the PARTNER'S ID to fetch our private conversation
+    final msgs = await _repository.getMessages(widget.partner.id);
+
+    if (mounted) {
+      setState(() {
+        _localMessages = msgs;
+        _isLoading = false;
+      });
+    }
   }
 
   void _sendMessage() async {
-    if (_textController.text.isEmpty) return;
-    final text = _textController.text;
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+
     _textController.clear();
 
-    // 1. Optimistic Update
+    // 1. Optimistic Update (Show immediately)
     final tempMsg = Message(
       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-      sender: const User(
-        id: 'me',
-        username: 'me',
-        displayName: 'Me',
-        avatarUrl: '',
-      ),
+      sender:
+          AuthService().currentUser ??
+          const User(
+            id: 'me',
+            username: 'Me',
+            displayName: 'Me',
+            avatarUrl: '',
+          ),
       text: text,
       timestamp: DateTime.now(),
     );
 
     setState(() {
-      _localMessages.insert(
-        0,
-        tempMsg,
-      ); // Add to bottom (or top if reverse list)
+      _localMessages.add(tempMsg); // Add to end of list
     });
 
     // 2. API Call
-    await _repository.sendMessage(widget.partner.id, text);
-    // Ideally replace tempMsg with real one here, but for now this is sufficient
+    final realMsg = await _repository.sendMessage(widget.partner.id, text);
+
+    // 3. Replace temp with real (optional, or just refresh next time)
+    if (realMsg != null && mounted) {
+      setState(() {
+        _localMessages.removeLast();
+        _localMessages.add(realMsg);
+      });
+    }
   }
 
   @override
@@ -75,31 +91,48 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           TopNav(title: widget.partner.displayName, showBack: true),
           Expanded(
-            child: FutureBuilder(
-              future: _messagesFuture,
-              builder: (context, snapshot) {
-                // Initial load
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    _localMessages.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: DesignTokens.accentPrimary,
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    itemCount: _localMessages.length,
+                    itemBuilder: (context, index) {
+                      final msg = _localMessages[index];
+                      final isMe = msg.sender.id == _currentUserId;
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: _localMessages.length,
-                  // Reverse typically used for chats, ensure data order matches
-                  // Here we assume data is Oldest -> Newest, so we render normally or reverse?
-                  // Let's render Standard for simplicity (Top Down)
-                  itemBuilder: (context, index) {
-                    final msg = _localMessages[index];
-                    return MessageBubble(
-                      message: msg,
-                      isMe: msg.sender.id == 'me',
-                    );
-                  },
-                );
-              },
-            ),
+                      // Simple Bubble Logic if you don't have the widget
+                      return Align(
+                        alignment: isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isMe
+                                ? DesignTokens.accentPrimary
+                                : DesignTokens.glassWhite,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            msg.text,
+                            style: TextStyle(
+                              color: isMe
+                                  ? Colors.white
+                                  : DesignTokens.textPrimary,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
           Padding(
             padding: const EdgeInsets.all(DesignTokens.paddingMedium),
@@ -112,7 +145,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: TextField(
                       controller: _textController,
                       decoration: const InputDecoration(
-                        hintText: "Type a message...",
+                        hintText: "Type a secure message...",
                         border: InputBorder.none,
                       ),
                     ),
