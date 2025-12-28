@@ -6,8 +6,9 @@ import 'glass_card.dart';
 import 'avatar.dart';
 import '../theme/design_tokens.dart';
 import '../screens/post_detail_screen.dart';
-import '../screens/profile_screen.dart'; // Added Import
+import '../screens/profile_screen.dart';
 import '../data/feed_repository.dart';
+import '../utils/time_formatter.dart'; // Ensure you created this file
 
 class PostPreview extends StatefulWidget {
   final Post post;
@@ -59,13 +60,11 @@ class _PostPreviewState extends State<PostPreview> {
   }
 
   void _handleTap() async {
-    // Wait for Detail Screen to return updated post
     final updatedPost = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => PostDetailScreen(post: _post)),
     );
 
-    // If we got an updated post back (e.g. likes changed), update local state
     if (updatedPost != null && updatedPost is Post && mounted) {
       setState(() {
         _post = updatedPost;
@@ -83,7 +82,7 @@ class _PostPreviewState extends State<PostPreview> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header - Wrapped in GestureDetector
+            // Header
             GestureDetector(
               onTap: _navigateToProfile,
               child: Row(
@@ -111,6 +110,15 @@ class _PostPreviewState extends State<PostPreview> {
                                 color: DesignTokens.accentSafe,
                               ),
                             ],
+                            const SizedBox(width: 8),
+                            // AUDIT: Relative Timestamp
+                            Text(
+                              "• ${TimeFormatter.formatRelative(_post.timestamp)}",
+                              style: const TextStyle(
+                                color: DesignTokens.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                         Text(
@@ -167,14 +175,7 @@ class _PostPreviewState extends State<PostPreview> {
                 _InteractionButton(
                   icon: CupertinoIcons.chat_bubble,
                   label: "${_post.comments}",
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PostDetailScreen(post: _post),
-                      ),
-                    );
-                  },
+                  onTap: _handleTap,
                 ),
                 _InteractionButton(
                   icon: CupertinoIcons.share,

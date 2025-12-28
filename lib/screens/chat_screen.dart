@@ -1,4 +1,5 @@
 // lib/screens/chat_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/message.dart';
@@ -6,9 +7,9 @@ import '../data/chat_repository.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/glass_card.dart';
-import '../widgets/message_bubble.dart'; // Ensure you have this widget or replace with Text
 import '../theme/design_tokens.dart';
 import '../services/auth_service.dart';
+import '../utils/time_formatter.dart'; // Ensure you created this file
 
 class ChatScreen extends StatefulWidget {
   final User partner;
@@ -26,23 +27,49 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Message> _localMessages = [];
   bool _isLoading = true;
   String? _currentUserId;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _currentUserId = AuthService().currentUser?.id;
     _loadMessages();
+
+    // Polling for new messages every 2 seconds
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _loadMessages(isPolling: true);
+    });
   }
 
-  void _loadMessages() async {
-    // Pass the PARTNER'S ID to fetch our private conversation
-    final msgs = await _repository.getMessages(widget.partner.id);
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _textController.dispose();
+    super.dispose();
+  }
 
-    if (mounted) {
-      setState(() {
-        _localMessages = msgs;
-        _isLoading = false;
-      });
+  Future<void> _loadMessages({bool isPolling = false}) async {
+    try {
+      final msgs = await _repository.getMessages(widget.partner.id);
+
+      if (mounted) {
+        // Smart Diffing to prevent UI flicker
+        bool shouldUpdate = _localMessages.length != msgs.length;
+        if (!shouldUpdate && msgs.isNotEmpty && _localMessages.isNotEmpty) {
+          if (msgs.last.id != _localMessages.last.id) {
+            shouldUpdate = true;
+          }
+        }
+
+        if (shouldUpdate || !isPolling) {
+          setState(() {
+            _localMessages = msgs;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (!isPolling && mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -52,7 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _textController.clear();
 
-    // 1. Optimistic Update (Show immediately)
+    // Optimistic Update
     final tempMsg = Message(
       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
       sender:
@@ -68,19 +95,11 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     setState(() {
-      _localMessages.add(tempMsg); // Add to end of list
+      _localMessages.add(tempMsg);
     });
 
-    // 2. API Call
-    final realMsg = await _repository.sendMessage(widget.partner.id, text);
-
-    // 3. Replace temp with real (optional, or just refresh next time)
-    if (realMsg != null && mounted) {
-      setState(() {
-        _localMessages.removeLast();
-        _localMessages.add(realMsg);
-      });
-    }
+    await _repository.sendMessage(widget.partner.id, text);
+    _loadMessages(isPolling: true); // Immediate refresh
   }
 
   @override
@@ -107,7 +126,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       final msg = _localMessages[index];
                       final isMe = msg.sender.id == _currentUserId;
 
-                      // Simple Bubble Logic if you don't have the widget
                       return Align(
                         alignment: isMe
                             ? Alignment.centerRight
@@ -115,19 +133,49 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.all(12),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
                           decoration: BoxDecoration(
                             color: isMe
                                 ? DesignTokens.accentPrimary
                                 : DesignTokens.glassWhite,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            msg.text,
-                            style: TextStyle(
-                              color: isMe
-                                  ? Colors.white
-                                  : DesignTokens.textPrimary,
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(16),
+                              topRight: const Radius.circular(16),
+                              bottomLeft: isMe
+                                  ? const Radius.circular(16)
+                                  : Radius.zero,
+                              bottomRight: isMe
+                                  ? Radius.zero
+                                  : const Radius.circular(16),
                             ),
+                          ),
+                          // Changed to Column to hold Message + Time
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                msg.text,
+                                style: TextStyle(
+                                  color: isMe
+                                      ? Colors.white
+                                      : DesignTokens.textPrimary,
+                                  height: 1.3,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              // AUDIT: Exact Time
+                              Text(
+                                TimeFormatter.formatChatTime(msg.timestamp),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isMe
+                                      ? Colors.white.withOpacity(0.7)
+                                      : DesignTokens.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -144,6 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _textController,
+                      textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         hintText: "Type a secure message...",
                         border: InputBorder.none,

@@ -9,7 +9,8 @@ import '../widgets/top_nav.dart';
 import '../widgets/avatar.dart';
 import '../widgets/glass_card.dart';
 import '../theme/design_tokens.dart';
-import 'profile_screen.dart'; // Added Import
+import 'profile_screen.dart';
+import '../utils/time_formatter.dart'; // Ensure you created this file
 
 class PostDetailScreen extends StatefulWidget {
   final Post post;
@@ -81,7 +82,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header - Wrapped in GestureDetector
                             GestureDetector(
                               onTap: () =>
                                   _navigateToProfile(widget.post.author.id),
@@ -151,7 +151,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           );
                         },
                       ),
-                      // Extra space for floating input
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -166,9 +165,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             right: DesignTokens.paddingMedium,
             bottom:
                 DesignTokens.paddingMedium +
-                MediaQuery.of(
-                  context,
-                ).viewInsets.bottom, // Moves up with keyboard
+                MediaQuery.of(context).viewInsets.bottom,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(32),
               child: BackdropFilter(
@@ -240,15 +237,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () => _navigateToProfile(comment.author.id),
-                    child: Text(
-                      comment.author.displayName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _navigateToProfile(comment.author.id),
+                        child: Text(
+                          comment.author.displayName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                    ),
+                      // AUDIT: Comment Timestamp
+                      Text(
+                        TimeFormatter.formatRelative(comment.timestamp),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: DesignTokens.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

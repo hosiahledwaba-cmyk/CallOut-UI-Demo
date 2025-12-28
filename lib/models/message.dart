@@ -21,9 +21,12 @@ class Message {
       id: json['id'] ?? '',
       sender: User.fromJson(json['sender'] ?? {}),
       text: json['text'] ?? '',
-      timestamp: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      // CRITICAL UPDATE: Safe parsing for Server Timestamps
+      // We use tryParse to prevent crashes if the server sends a malformed string
+      // or if the field is temporarily missing during a latency compensation write.
+      timestamp: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
       isRead: json['is_read'] ?? false,
     );
   }
@@ -38,7 +41,7 @@ class Message {
     };
   }
 
-  // Added copyWith for optimistic updates (e.g. marking as read locally)
+  // Necessary for optimistic updates (updating list before API returns)
   Message copyWith({
     String? id,
     User? sender,

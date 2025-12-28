@@ -19,9 +19,12 @@ class Comment {
       id: json['id'] ?? '',
       author: User.fromJson(json['author'] ?? {}),
       text: json['text'] ?? '',
-      timestamp: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      // CRITICAL UPDATE: Safe parsing for Server Timestamps
+      // Maps 'created_at' from the backend to 'timestamp' in the model.
+      // Uses tryParse to prevent crashes on malformed data.
+      timestamp: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 
@@ -32,7 +35,7 @@ class Comment {
     'created_at': timestamp.toIso8601String(),
   };
 
-  // Added copyWith for consistency
+  // Added copyWith for consistency and optimistic updates
   Comment copyWith({
     String? id,
     User? author,
