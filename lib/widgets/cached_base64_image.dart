@@ -1,5 +1,6 @@
 // lib/widgets/cached_base64_image.dart
 import 'dart:io';
+import 'dart:ui'; // Required for ImageFilter
 import 'package:flutter/material.dart';
 import '../services/media_service.dart';
 import '../theme/design_tokens.dart';
@@ -33,7 +34,6 @@ class _CachedBase64ImageState extends State<CachedBase64Image> {
     _loadImage();
   }
 
-  // Reload when ID changes (important for lists)
   @override
   void didUpdateWidget(covariant CachedBase64Image oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -43,6 +43,9 @@ class _CachedBase64ImageState extends State<CachedBase64Image> {
   }
 
   Future<void> _loadImage() async {
+    // Avoid resetting state if ID hasn't changed to prevent flickering
+    if (_imageFile != null && !mounted) return;
+
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -61,6 +64,7 @@ class _CachedBase64ImageState extends State<CachedBase64Image> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Loading State
     if (_isLoading) {
       return Container(
         height: widget.height ?? 200,
@@ -79,39 +83,55 @@ class _CachedBase64ImageState extends State<CachedBase64Image> {
       );
     }
 
+    // 2. Error State
     if (_hasError || _imageFile == null) {
       return Container(
         height: widget.height ?? 200,
         width: widget.width,
         color: Colors.grey[200],
-        child: Column(
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          children: [Icon(Icons.broken_image, color: Colors.grey)],
+        ),
+      );
+    }
+
+    // 3. Success State
+    // If fit is CONTAIN, we use the "Blurred Background" technique
+    if (widget.fit == BoxFit.contain) {
+      return SizedBox(
+        height: widget.height,
+        width: widget.width,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            const Icon(Icons.broken_image, color: Colors.grey),
-            const SizedBox(height: 4),
-            Text(
-              "Failed to load",
-              style: TextStyle(color: Colors.grey[600], fontSize: 10),
+            // Layer A: Blurred Background (Fills the space)
+            Image.file(_imageFile!, fit: BoxFit.cover),
+            // Layer B: Blur Effect & Darken
+            ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  color: Colors.black.withOpacity(
+                    0.4,
+                  ), // Darken slightly so foreground pops
+                ),
+              ),
             ),
+            // Layer C: Actual Image (Fits perfectly)
+            Image.file(_imageFile!, fit: BoxFit.contain, gaplessPlayback: true),
           ],
         ),
       );
     }
 
+    // Standard Render (Cover, Fill, etc.)
     return Image.file(
       _imageFile!,
       height: widget.height,
       width: widget.width,
       fit: widget.fit,
-      gaplessPlayback: true, // Prevents flickering when scrolling
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          height: widget.height,
-          width: widget.width,
-          color: Colors.grey[200],
-          child: const Icon(Icons.error, color: DesignTokens.accentAlert),
-        );
-      },
+      gaplessPlayback: true,
     );
   }
 }

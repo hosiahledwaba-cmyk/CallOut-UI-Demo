@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 class DesignTokens {
-  // Colors - Pastels & Glass
+  // Light Colors - Pastels & Glass
   static const Color backgroundTop = Color(0xFFE0EAFC);
   static const Color backgroundBottom = Color(0xFFCFDEF3);
 
@@ -18,6 +18,19 @@ class DesignTokens {
   static const Color glassWhite = Color(0xFFFFFFFF);
   static const Color glassBorder = Color(0x33FFFFFF); // 20% White
   static const Color glassShadow = Color(0x1A2D3436); // 10% Dark
+
+  // Dark-mode tokens
+  static const Color backgroundTopDark = Color(0xFF0F1724);
+  static const Color backgroundBottomDark = Color(0xFF071226);
+
+  static const Color textPrimaryDark = Color(0xFFEFF3F7); // near-white for text
+  static const Color textSecondaryDark = Color(0xFFB9C2C9);
+
+  static const Color glassDark = Color(0xFF12131A);
+  static const Color glassBorderDark = Color(
+    0x33FFFFFF,
+  ); // slightly visible border
+  static const Color glassShadowDark = Color(0x26000000);
 
   // Metrics
   static const double borderRadiusSmall = 12.0;

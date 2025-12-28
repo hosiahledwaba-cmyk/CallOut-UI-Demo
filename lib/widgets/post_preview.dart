@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import '../models/post.dart';
 import 'glass_card.dart';
 import 'avatar.dart';
-import 'cached_base64_image.dart'; // Ensure this file exists in lib/widgets/
+import 'cached_base64_image.dart';
 import '../theme/design_tokens.dart';
 import '../screens/post_detail_screen.dart';
 import '../screens/profile_screen.dart';
@@ -23,6 +23,7 @@ class PostPreview extends StatefulWidget {
 class _PostPreviewState extends State<PostPreview> {
   late Post _post;
   final FeedRepository _repo = FeedRepository();
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
@@ -112,7 +113,6 @@ class _PostPreviewState extends State<PostPreview> {
                               ),
                             ],
                             const SizedBox(width: 8),
-                            // AUDIT: Relative Timestamp
                             Text(
                               "• ${TimeFormatter.formatRelative(_post.timestamp)}",
                               style: const TextStyle(
@@ -138,12 +138,11 @@ class _PostPreviewState extends State<PostPreview> {
               ),
             ),
 
-            // Content Text
+            // Content
             const SizedBox(height: DesignTokens.paddingMedium),
             Text(_post.content, style: Theme.of(context).textTheme.bodyLarge),
 
             // MEDIA RENDERING
-            // Priority 1: Check for Database Media (mediaIds)
             if (_post.mediaIds.isNotEmpty) ...[
               const SizedBox(height: DesignTokens.paddingMedium),
               ClipRRect(
@@ -151,19 +150,48 @@ class _PostPreviewState extends State<PostPreview> {
                   DesignTokens.borderRadiusSmall,
                 ),
                 child: SizedBox(
-                  height: 200, // FORCE HEIGHT
-                  width: double.infinity, // FORCE WIDTH
-                  child: CachedBase64Image(
-                    mediaId: _post.mediaIds.first,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                  height: 300, // Fixed height for consistency
+                  width: double.infinity,
+                  child: PageView.builder(
+                    itemCount: _post.mediaIds.length,
+                    onPageChanged: (index) =>
+                        setState(() => _currentImageIndex = index),
+                    itemBuilder: (context, index) {
+                      return CachedBase64Image(
+                        mediaId: _post.mediaIds[index],
+                        height: 300,
+                        width: double.infinity,
+                        fit: BoxFit.contain, // Triggers "Smart Blur"
+                      );
+                    },
                   ),
                 ),
               ),
-            ]
-            // Priority 2: Check for Legacy/External URL
-            else if (_post.imageUrl != null && _post.imageUrl!.isNotEmpty) ...[
+              // Dots Indicator
+              if (_post.mediaIds.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _post.mediaIds.length > 5 ? 5 : _post.mediaIds.length,
+                      (index) => Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: _currentImageIndex == index
+                              ? DesignTokens.accentPrimary
+                              : DesignTokens.textSecondary.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ] else if (_post.imageUrl != null &&
+                _post.imageUrl!.isNotEmpty) ...[
+              // Fallback for legacy
               const SizedBox(height: DesignTokens.paddingMedium),
               ClipRRect(
                 borderRadius: BorderRadius.circular(
@@ -171,15 +199,16 @@ class _PostPreviewState extends State<PostPreview> {
                 ),
                 child: Image.network(
                   _post.imageUrl!,
-                  height: 200,
+                  height: 300,
                   width: double.infinity,
-                  fit: BoxFit.cover,
+                  fit: BoxFit
+                      .cover, // Legacy can stay cover or switch to contain
                   errorBuilder: (c, e, s) => const SizedBox(),
                 ),
               ),
             ],
 
-            // Interaction Buttons
+            // Actions
             const SizedBox(height: DesignTokens.paddingMedium),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -8,7 +8,7 @@ import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/avatar.dart';
 import '../widgets/glass_card.dart';
-import '../widgets/cached_base64_image.dart'; // Ensure imported
+import '../widgets/cached_base64_image.dart';
 import '../theme/design_tokens.dart';
 import 'profile_screen.dart';
 import '../utils/time_formatter.dart';
@@ -27,6 +27,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   late Future<List<Comment>> _commentsFuture;
   List<Comment> _comments = [];
+
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
@@ -69,7 +71,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       showBottomNav: false,
       body: Stack(
         children: [
-          // Scrollable Content
           Column(
             children: [
               const TopNav(title: "Post", showBack: true),
@@ -78,11 +79,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   padding: const EdgeInsets.all(DesignTokens.paddingMedium),
                   child: Column(
                     children: [
-                      // Main Post Card
                       GlassCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Author
                             GestureDetector(
                               onTap: () =>
                                   _navigateToProfile(widget.post.author.id),
@@ -115,27 +116,68 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               style: const TextStyle(fontSize: 18, height: 1.5),
                             ),
 
-                            // MEDIA RENDERING
+                            // --- MEDIA CAROUSEL ---
                             if (widget.post.mediaIds.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
-                                child: CachedBase64Image(
-                                  mediaId: widget.post.mediaIds.first,
-                                  // FIX: Provide explicit height/width for detail view
-                                  // or double.infinity width so it doesn't collapse
-                                  height: 400,
+                                child: SizedBox(
+                                  height: 400, // Big view
                                   width: double.infinity,
-                                  fit: BoxFit
-                                      .cover, // or contain based on preference
+                                  child: PageView.builder(
+                                    itemCount: widget.post.mediaIds.length,
+                                    onPageChanged: (index) {
+                                      setState(
+                                        () => _currentImageIndex = index,
+                                      );
+                                    },
+                                    itemBuilder: (context, index) {
+                                      return CachedBase64Image(
+                                        mediaId: widget.post.mediaIds[index],
+                                        fit: BoxFit
+                                            .contain, // Smart Blur Enabled
+                                        height: 400,
+                                        width: double.infinity,
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
+                              // Dots
+                              if (widget.post.mediaIds.length > 1)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(
+                                      widget.post.mediaIds.length,
+                                      (index) => Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 3,
+                                        ),
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: _currentImageIndex == index
+                                              ? DesignTokens.accentPrimary
+                                              : DesignTokens.glassBorder,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                             ] else if (widget.post.imageUrl != null &&
                                 widget.post.imageUrl!.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
-                                child: Image.network(widget.post.imageUrl!),
+                                child: Image.network(
+                                  widget.post.imageUrl!,
+                                  height: 400,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             ],
 
@@ -151,8 +193,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                       ),
 
-                      // Comment List
                       const SizedBox(height: 16),
+                      // Comments
                       FutureBuilder(
                         future: _commentsFuture,
                         builder: (context, snapshot) {
@@ -170,7 +212,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           );
                         },
                       ),
-                      // Space for floating input
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -179,7 +220,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ],
           ),
 
-          // Floating Input Bar
+          // Input Bar
           Positioned(
             left: DesignTokens.paddingMedium,
             right: DesignTokens.paddingMedium,
@@ -270,7 +311,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ),
                         ),
                       ),
-                      // AUDIT: Relative Timestamp on Comment
                       Text(
                         TimeFormatter.formatRelative(comment.timestamp),
                         style: const TextStyle(

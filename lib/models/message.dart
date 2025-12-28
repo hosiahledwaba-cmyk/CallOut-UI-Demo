@@ -5,6 +5,7 @@ class Message {
   final String id;
   final User sender;
   final String text;
+  final String? mediaId; // New Field for Chat Media
   final DateTime timestamp;
   final bool isRead;
 
@@ -12,6 +13,7 @@ class Message {
     required this.id,
     required this.sender,
     required this.text,
+    this.mediaId,
     required this.timestamp,
     this.isRead = false,
   });
@@ -21,9 +23,9 @@ class Message {
       id: json['id'] ?? '',
       sender: User.fromJson(json['sender'] ?? {}),
       text: json['text'] ?? '',
-      // CRITICAL UPDATE: Safe parsing for Server Timestamps
-      // We use tryParse to prevent crashes if the server sends a malformed string
-      // or if the field is temporarily missing during a latency compensation write.
+      // Map the media_id from backend
+      mediaId: json['media_id'],
+      // Safe Timestamp Parsing
       timestamp: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -36,16 +38,17 @@ class Message {
       'id': id,
       'sender': sender.toJson(),
       'text': text,
+      'media_id': mediaId,
       'created_at': timestamp.toIso8601String(),
       'is_read': isRead,
     };
   }
 
-  // Necessary for optimistic updates (updating list before API returns)
   Message copyWith({
     String? id,
     User? sender,
     String? text,
+    String? mediaId,
     DateTime? timestamp,
     bool? isRead,
   }) {
@@ -53,6 +56,7 @@ class Message {
       id: id ?? this.id,
       sender: sender ?? this.sender,
       text: text ?? this.text,
+      mediaId: mediaId ?? this.mediaId,
       timestamp: timestamp ?? this.timestamp,
       isRead: isRead ?? this.isRead,
     );

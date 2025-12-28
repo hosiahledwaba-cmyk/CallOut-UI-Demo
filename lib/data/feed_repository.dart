@@ -22,20 +22,21 @@ class FeedRepository {
       }
       throw Exception('Failed to load feed');
     } catch (e) {
-      // Mock Data Fallback
+      // Mock Data Fallback (for testing offline)
       return _getMockPosts();
     }
   }
 
-  // CREATE POST (2-Step Process for Media)
+  // CREATE POST (2-Step Process: Metadata -> Media Upload)
   Future<bool> createPost(
     String content,
     bool isAnonymous, {
     String? imageUrl,
-    File? imageFile, // New optional parameter
+    List<File> imageFiles = const [], // Accepts multiple images
   }) async {
     try {
       // Step 1: Create the Post metadata
+      // The backend creates the post document and returns its ID immediately.
       final response = await http
           .post(
             Uri.parse(ApiConfig.posts),
@@ -49,26 +50,40 @@ class FeedRepository {
           .timeout(ApiConfig.timeout);
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        if (imageFile != null) {
+        // Step 2: If we have images, upload them using the returned Post ID
+        if (imageFiles.isNotEmpty) {
           final responseData = jsonDecode(response.body);
 
-          // DEBUG PRINT: Check this in your Flutter console
-          print("CREATE POST RESPONSE: $responseData");
+          // Debug Print
+          print("📝 Post Created. Response: $responseData");
 
           final String? postId = responseData['id'];
 
           if (postId != null) {
-            print("UPLOADING MEDIA TO POST: $postId");
-            await MediaService().uploadMedia(postId, imageFile);
+            print("🚀 Uploading ${imageFiles.length} images for Post: $postId");
+
+            // Parallel Upload: Faster than looping one by one
+            final uploadTasks = imageFiles.map((file) {
+              // CRITICAL FIX: Explicitly set type to "post"
+              // This tells the backend to store it in 'post_media' and link it to the post
+              return MediaService().uploadMedia(postId, file, type: "post");
+            });
+
+            // Wait for all uploads to finish
+            await Future.wait(uploadTasks);
+            print("✅ All media uploaded successfully.");
           } else {
-            print("ERROR: Post ID was null, skipping media upload");
+            print(
+              "❌ Error: Backend did not return a Post ID. Skipping media upload.",
+            );
           }
         }
         return true;
       }
       return false;
     } catch (e) {
-      // For Mock Mode: Simulate success
+      print("Create Post Error: $e");
+      // For Mock/Demo Mode: Simulate success after delay
       await Future.delayed(const Duration(seconds: 1));
       return true;
     }
@@ -136,6 +151,7 @@ class FeedRepository {
         return Comment.fromJson(jsonDecode(response.body));
       }
     } catch (e) {
+      // Mock return for optimistic UI
       return Comment(
         id: 'c_${DateTime.now().millisecondsSinceEpoch}',
         author: const User(
@@ -152,7 +168,6 @@ class FeedRepository {
   }
 
   List<Post> _getMockPosts() {
-    // Reusing previous mock logic for brevity
     final User user1 = const User(
       id: 'u1',
       username: 'sarah_j',

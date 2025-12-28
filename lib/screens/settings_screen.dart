@@ -8,6 +8,7 @@ import '../theme/design_tokens.dart';
 import '../app.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import '../app_settings.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -24,6 +25,8 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsProvider.of(context);
+
+    final effectiveDark = Theme.of(context).brightness == Brightness.dark;
 
     return GlassScaffold(
       showBottomNav: false,
@@ -64,6 +67,44 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+
+                const SizedBox(height: 24),
+                const Padding(
+                  padding: EdgeInsets.only(left: 8, bottom: 8),
+                  child: Text(
+                    "Appearance",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                GlassCard(
+                  child: Column(
+                    children: [
+                      // Use system theme toggle
+                      SwitchListTile(
+                        title: const Text("Use system theme"),
+                        subtitle: const Text(
+                          "Follow the OS (default). Turn off to pick Light/Dark manually.",
+                        ),
+                        value: settings?.useSystemTheme ?? true,
+                        onChanged: (val) => settings?.toggleUseSystemTheme(val),
+                        activeColor: DesignTokens.accentPrimary,
+                      ),
+                      const Divider(),
+                      // Dark mode toggle - only meaningful when useSystemTheme is false,
+                      // but we still show it and when toggled it disables system follow.
+                      SwitchListTile(
+                        title: const Text("Dark mode"),
+                        subtitle: const Text(
+                          "Force dark theme when system follow is off",
+                        ),
+                        value: settings?.isDarkMode ?? effectiveDark,
+                        onChanged: (val) => settings?.toggleDarkMode(val),
+                        activeColor: DesignTokens.accentPrimary,
+                      ),
+                    ],
+                  ),
+                ),
+
                 const SizedBox(height: 24),
                 const Padding(
                   padding: EdgeInsets.only(left: 8, bottom: 8),

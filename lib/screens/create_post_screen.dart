@@ -1,5 +1,6 @@
 // lib/screens/create_post_screen.dart
 import 'dart:io';
+import 'dart:ui'; // For ImageFilter
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/glass_scaffold.dart';
@@ -21,29 +22,46 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final FeedRepository _repository = FeedRepository();
   final ImagePicker _picker = ImagePicker();
 
-  File? _selectedImage;
+  List<File> _selectedImages = [];
   bool isAnonymous = false;
   bool _isPosting = false;
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImages() async {
+    if (_selectedImages.length >= 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Maximum 10 images allowed.")),
+      );
+      return;
+    }
+
     try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile> images = await _picker.pickMultiImage(
         maxWidth: 1920,
         imageQuality: 85,
       );
-      if (image != null) {
-        setState(() => _selectedImage = File(image.path));
+
+      if (images.isNotEmpty) {
+        setState(() {
+          final remainingSlots = 10 - _selectedImages.length;
+          final newFiles = images.take(remainingSlots).map((x) => File(x.path));
+          _selectedImages.addAll(newFiles);
+        });
       }
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Could not pick image.")));
+      ).showSnackBar(const SnackBar(content: Text("Could not pick images.")));
     }
   }
 
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
   void _handlePost() async {
-    if (_contentController.text.trim().isEmpty && _selectedImage == null)
+    if (_contentController.text.trim().isEmpty && _selectedImages.isEmpty)
       return;
 
     setState(() => _isPosting = true);
@@ -51,7 +69,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final success = await _repository.createPost(
       _contentController.text,
       isAnonymous,
-      imageFile: _selectedImage, // Pass the file here
+      imageFiles: _selectedImages,
     );
 
     setState(() => _isPosting = false);
@@ -116,6 +134,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               padding: const EdgeInsets.all(DesignTokens.paddingMedium),
               child: Column(
                 children: [
+                  // Anonymous Toggle
                   GlassCard(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -160,8 +179,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
                   const SizedBox(height: 16),
 
+                  // Text Input
                   GlassCard(
-                    height: 200,
+                    height: 150,
                     padding: const EdgeInsets.all(16),
                     child: TextField(
                       controller: _contentController,
@@ -176,56 +196,83 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     ),
                   ),
 
-                  if (_selectedImage != null) ...[
+                  // Multi-Image Preview with Smart Blur
+                  if (_selectedImages.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                            DesignTokens.borderRadiusSmall,
-                          ),
-                          child: Image.file(
-                            _selectedImage!,
-                            height: 200,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedImage = null),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _selectedImages.length,
+                        itemBuilder: (context, index) {
+                          final file = _selectedImages[index];
+                          return Stack(
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.only(right: 12),
+                                width: 120,
+                                height: 120,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      // Background Blur
+                                      Image.file(file, fit: BoxFit.cover),
+                                      BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                          sigmaX: 5,
+                                          sigmaY: 5,
+                                        ),
+                                        child: Container(
+                                          color: Colors.black.withOpacity(0.3),
+                                        ),
+                                      ),
+                                      // Foreground
+                                      Image.file(file, fit: BoxFit.contain),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                size: 20,
+                              Positioned(
+                                top: 4,
+                                right: 16,
+                                child: GestureDetector(
+                                  onTap: () => _removeImage(index),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
-                      ],
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ],
 
                   const SizedBox(height: 16),
 
+                  // Media Buttons
                   Row(
                     children: [
                       Expanded(
                         child: GlassButton(
-                          label: _selectedImage == null
-                              ? "Photo"
-                              : "Change Photo",
+                          label: _selectedImages.isEmpty
+                              ? "Add Photos"
+                              : "Add More (${_selectedImages.length}/10)",
                           icon: Icons.camera_alt,
                           isPrimary: false,
-                          onTap: _pickImage,
+                          onTap: _pickImages,
                         ),
                       ),
                       const SizedBox(width: 12),
