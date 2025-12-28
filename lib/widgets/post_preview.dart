@@ -6,6 +6,7 @@ import 'glass_card.dart';
 import 'avatar.dart';
 import '../theme/design_tokens.dart';
 import '../screens/post_detail_screen.dart';
+import '../screens/profile_screen.dart'; // Added Import
 import '../data/feed_repository.dart';
 
 class PostPreview extends StatefulWidget {
@@ -29,15 +30,12 @@ class _PostPreviewState extends State<PostPreview> {
 
   void _handleLike() {
     final wasLiked = _post.isLiked;
-    // Optimistic Update
     setState(() {
       _post = _post.copyWith(
         isLiked: !wasLiked,
         likes: _post.likes + (wasLiked ? -1 : 1),
       );
     });
-
-    // API Call
     _repo.likePost(_post.id, !wasLiked);
   }
 
@@ -51,64 +49,84 @@ class _PostPreviewState extends State<PostPreview> {
     );
   }
 
+  void _navigateToProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileScreen(userId: _post.author.id),
+      ),
+    );
+  }
+
+  void _handleTap() async {
+    // Wait for Detail Screen to return updated post
+    final updatedPost = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => PostDetailScreen(post: _post)),
+    );
+
+    // If we got an updated post back (e.g. likes changed), update local state
+    if (updatedPost != null && updatedPost is Post && mounted) {
+      setState(() {
+        _post = updatedPost;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: DesignTokens.paddingMedium),
       child: GlassCard(
         isAlert: _post.isEmergency,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PostDetailScreen(post: _post),
-            ),
-          );
-        },
+        onTap: _handleTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Row(
-              children: [
-                Avatar(user: _post.author),
-                const SizedBox(width: DesignTokens.paddingSmall),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            _post.author.displayName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+            // Header - Wrapped in GestureDetector
+            GestureDetector(
+              onTap: _navigateToProfile,
+              child: Row(
+                children: [
+                  Avatar(user: _post.author),
+                  const SizedBox(width: DesignTokens.paddingSmall),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              _post.author.displayName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
-                          ),
-                          if (_post.author.isVerified) ...[
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.verified,
-                              size: 14,
-                              color: DesignTokens.accentSafe,
-                            ),
+                            if (_post.author.isVerified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.verified,
+                                size: 14,
+                                color: DesignTokens.accentSafe,
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                      Text(
-                        "@${_post.author.username}",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
+                        ),
+                        Text(
+                          "@${_post.author.username}",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                if (_post.isEmergency)
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    color: DesignTokens.accentAlert,
-                  ),
-              ],
+                  if (_post.isEmergency)
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: DesignTokens.accentAlert,
+                    ),
+                ],
+              ),
             ),
 
             // Content

@@ -1,18 +1,20 @@
 // lib/main.dart
-/* README:
-  Drop these files into lib/ of an existing Flutter project.
-  
-  Updates:
-  - Added Auth (Login/Signup)
-  - Added Async Data Fetching with Fallback
-  
-  Flow:
-  Login -> Feed (Tries API, falls back to Mock)
-*/
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app.dart';
+import 'services/auth_service.dart'; // Import to access loadSession
 
-void main() {
+void main() async {
+  // 1. Ensure Flutter bindings are ready for async operations
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Load the User Session from storage
+  // This pulls the token from disk so the API knows who you are immediately.
+  await AuthService().loadSession();
+
+  // 3. Lock Orientation (Optional, but good for stability)
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // 4. Start the App
   runApp(const SafeSpaceApp());
 }

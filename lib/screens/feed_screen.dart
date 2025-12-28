@@ -33,6 +33,18 @@ class _FeedScreenState extends State<FeedScreen> {
     });
   }
 
+  // Navigate to Create Post and refresh feed if post created
+  void _navigateToCreatePost() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreatePostScreen()),
+    );
+
+    if (result == true) {
+      _refreshFeed();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Check Permissions
@@ -44,14 +56,7 @@ class _FeedScreenState extends State<FeedScreen> {
       // Only show FAB if user is an Activist
       floatingActionButton: canPost
           ? FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CreatePostScreen(),
-                  ),
-                );
-              },
+              onPressed: _navigateToCreatePost,
               backgroundColor: DesignTokens.accentPrimary,
               child: const Icon(Icons.add),
             )
@@ -85,7 +90,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 }
 
                 if (snapshot.hasError) {
-                  return Center(child: Text("Connection Error"));
+                  return const Center(child: Text("Connection Error"));
                 }
 
                 final posts = snapshot.data ?? [];

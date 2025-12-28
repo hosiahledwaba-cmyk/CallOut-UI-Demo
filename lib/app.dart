@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
+import 'screens/feed_screen.dart'; // Import FeedScreen
+import 'services/auth_service.dart'; // Import AuthService
 
 // Simple InheritedWidget to manage simulation settings globally
 class AppSettingsProvider extends InheritedWidget {
@@ -47,6 +49,9 @@ class _SafeSpaceAppState extends State<SafeSpaceApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Check if the user session was successfully loaded in main.dart
+    final bool isLoggedIn = AuthService().isAuthenticated;
+
     return AppSettingsProvider(
       reduceMotion: _reduceMotion,
       reduceTransparency: _reduceTransparency,
@@ -56,7 +61,8 @@ class _SafeSpaceAppState extends State<SafeSpaceApp> {
         title: 'SafeSpace',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const LoginScreen(), // Start at Login
+        // LOGIC FIX: If token exists, go to Feed. If not, go to Login.
+        home: isLoggedIn ? const FeedScreen() : const LoginScreen(),
       ),
     );
   }

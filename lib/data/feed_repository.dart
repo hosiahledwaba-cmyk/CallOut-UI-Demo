@@ -7,42 +7,72 @@ import '../models/comment.dart';
 import 'api_config.dart';
 
 class FeedRepository {
+  // GET FEED
   Future<List<Post>> getPosts() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.feed),
-        headers: ApiConfig.headers,
-      );
+      final response = await http
+          .get(
+            Uri.parse(ApiConfig.feed),
+            headers:
+                ApiConfig.headers, // Headers must include Auth Token usually
+          )
+          .timeout(ApiConfig.timeout);
+
       if (response.statusCode == 200) {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => Post.fromJson(e)).toList();
       }
-      throw Exception('Failed to load posts');
+      throw Exception('Failed to load feed');
     } catch (e) {
+      // Mock Data Fallback
       return _getMockPosts();
     }
   }
 
+  // CREATE POST
   Future<bool> createPost(
     String content,
     bool isAnonymous, {
     String? imageUrl,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConfig.posts),
-        headers: ApiConfig.headers,
-        body: jsonEncode({
-          'content': content,
-          'is_anonymous': isAnonymous,
-          'image_url': imageUrl,
-        }),
-      );
-      return response.statusCode == 201;
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.posts),
+            headers: ApiConfig.headers,
+            body: jsonEncode({
+              'content': content,
+              'is_anonymous': isAnonymous,
+              'image_url': imageUrl,
+            }),
+          )
+          .timeout(ApiConfig.timeout);
+
+      // 201 Created or 200 OK are valid successes
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
-      // Simulate success
-      await Future.delayed(const Duration(milliseconds: 500));
+      // For Mock Mode: Simulate success
+      await Future.delayed(const Duration(seconds: 1));
       return true;
+    }
+  }
+
+  // TOGGLE LIKE
+  Future<bool> likePost(String postId, bool isLiked) async {
+    try {
+      final url = ApiConfig.postLike.replaceAll('{id}', postId);
+
+      final response = isLiked
+          ? await http
+                .post(Uri.parse(url), headers: ApiConfig.headers)
+                .timeout(ApiConfig.timeout)
+          : await http
+                .delete(Uri.parse(url), headers: ApiConfig.headers)
+                .timeout(ApiConfig.timeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return true; // Optimistic success
     }
   }
 
@@ -59,23 +89,6 @@ class FeedRepository {
       throw Exception('Failed');
     } catch (e) {
       return _getMockComments();
-    }
-  }
-
-  Future<bool> likePost(String postId, bool isLiked) async {
-    final url = ApiConfig.postLike.replaceAll('{id}', postId);
-    try {
-      final response = isLiked
-          ? await http
-                .post(Uri.parse(url), headers: ApiConfig.headers)
-                .timeout(ApiConfig.timeout)
-          : await http
-                .delete(Uri.parse(url), headers: ApiConfig.headers)
-                .timeout(ApiConfig.timeout);
-
-      return response.statusCode == 200;
-    } catch (e) {
-      return true; // Optimistic success for mock
     }
   }
 

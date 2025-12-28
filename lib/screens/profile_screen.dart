@@ -12,10 +12,10 @@ import '../services/auth_service.dart';
 import '../data/profile_repository.dart';
 import '../theme/design_tokens.dart';
 import 'verification_screen.dart';
-import 'chat_screen.dart'; // To navigate to messages
+import 'chat_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final String? userId; // If null, shows current user
+  final String? userId; // Null = Me, String = Other User
 
   const ProfileScreen({super.key, this.userId});
 
@@ -25,49 +25,53 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileRepository _repo = ProfileRepository();
+
   User? _user;
   List<Post> _posts = [];
-  bool _isMe = false;
   bool _isLoading = true;
-  bool _isFollowing = false; // Local state for other users
+  bool _isMe = false;
+  bool _isFollowing = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchProfile();
+    _fetchProfileData();
   }
 
-  void _fetchProfile() async {
+  void _fetchProfileData() async {
     final currentUserId = AuthService().currentUser?.id;
+    // Determine target ID
     final targetId = widget.userId ?? currentUserId;
 
-    if (targetId == null) return; // Should likely redirect to login
+    if (targetId == null) {
+      // Handle edge case: No user logged in and no ID passed
+      setState(() => _isLoading = false);
+      return;
+    }
 
     _isMe = (targetId == currentUserId);
 
-    // 1. Fetch User Profile
-    final user = await _repo.getUserProfile(targetId);
-
-    // 2. Fetch Posts
-    final posts = await _repo.getUserPosts(targetId);
+    // Parallel Fetch: Profile + Posts
+    final results = await Future.wait([
+      _repo.getUserProfile(targetId),
+      _repo.getUserPosts(targetId),
+    ]);
 
     if (mounted) {
       setState(() {
-        _user = user;
-        _posts = posts;
+        _user = results[0] as User;
+        _posts = results[1] as List<Post>;
+        _isFollowing = _user!.isFollowing;
         _isLoading = false;
-        _isFollowing = user.isFollowing;
       });
     }
   }
 
-  void _handleFollowToggle() {
-    if (_user == null) return;
+  void _handleFollow() {
     setState(() => _isFollowing = !_isFollowing);
-    _repo.toggleFollow(
-      _user!.id,
-      !_isFollowing,
-    ); // Invert logic: passed bool is 'desired state' usually, but repo takes current? let's assume repo toggles
+    if (_user != null) {
+      _repo.toggleFollow(_user!.id, !_isFollowing); // API Call
+    }
   }
 
   void _handleMessage() {
@@ -80,142 +84,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Loading State
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const GlassScaffold(
+        showBottomNav: false,
+        body: Center(
+          child: CircularProgressIndicator(color: DesignTokens.accentPrimary),
+        ),
+      );
     }
 
+    // 2. Error State
     if (_user == null) {
-      return const Scaffold(body: Center(child: Text("User not found")));
+      return const GlassScaffold(
+        showBottomNav: false,
+        body: Center(child: Text("User not found.")),
+      );
     }
 
+    // 3. Content State
     return GlassScaffold(
-      // Only show bottom nav highlights if it's My Profile main tab
+      // Show bottom nav ONLY if viewing "My Profile" tab (userId is null)
       currentTabIndex: widget.userId == null ? 3 : -1,
-      showBottomNav:
-          widget.userId ==
-          null, // Hide nav when viewing others to focus on profile
+      showBottomNav: widget.userId == null,
       body: Column(
         children: [
           TopNav(
             title: _isMe ? "My Profile" : _user!.displayName,
-            showBack: !_isMe, // Show back button if viewing someone else
+            showBack: !_isMe,
             showSettings: _isMe,
           ),
 
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(DesignTokens.paddingMedium),
-              child: Column(
-                children: [
-                  // --- HEADER ---
-                  const SizedBox(height: 10),
-                  Avatar(user: _user!, radius: 55),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _user!.displayName,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      if (_user!.isVerified) ...[
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.verified,
-                          color: DesignTokens.accentSafe,
-                          size: 24,
-                        ),
-                      ],
-                    ],
-                  ),
-                  Text(
-                    "@${_user!.username}",
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+            child: RefreshIndicator(
+              onRefresh: () async => _fetchProfileData(),
+              color: DesignTokens.accentPrimary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
 
-                  const SizedBox(height: 24),
+                    // --- HEADER SECTION ---
+                    _buildHeader(),
 
-                  // --- ACTIONS (If not me) ---
-                  if (!_isMe) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 120,
-                          child: GlassButton(
-                            label: _isFollowing ? "Following" : "Follow",
-                            isPrimary: !_isFollowing,
-                            onTap: _handleFollowToggle,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 120,
-                          child: GlassButton(
-                            label: "Message",
-                            isPrimary: false,
-                            icon: Icons.chat_bubble_outline,
-                            onTap: _handleMessage,
-                          ),
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 24),
-                  ],
 
-                  // --- DASHBOARD (If me) ---
-                  if (_isMe) ...[
-                    _buildTrustDashboard(),
+                    // --- STATS ROW ---
+                    _buildStatsRow(),
+
                     const SizedBox(height: 24),
+
+                    // --- ACTION BUTTONS ---
+                    if (_isMe) _buildMyDashboard() else _buildPublicActions(),
+
+                    const SizedBox(height: 24),
+                    const Divider(color: DesignTokens.glassBorder),
+
+                    // --- POSTS FEED ---
+                    _buildPostsList(),
                   ],
-
-                  // --- STATS ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _StatItem(count: "${_posts.length}", label: "Posts"),
-                      const _StatItem(count: "342", label: "Following"),
-                      const _StatItem(count: "1.2k", label: "Followers"),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Divider(),
-
-                  // --- POSTS LIST ---
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "Recent Activity",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  if (_posts.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Text(
-                        "No posts yet.",
-                        style: TextStyle(color: DesignTokens.textSecondary),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true, // Vital for nesting in ScrollView
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _posts.length,
-                      itemBuilder: (context, index) {
-                        return PostPreview(post: _posts[index]);
-                      },
-                    ),
-
-                  const SizedBox(height: 80),
-                ],
+                ),
               ),
             ),
           ),
@@ -224,75 +154,192 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTrustDashboard() {
-    bool isActivist = _user!.isActivist;
-    bool isVerified = _user!.isVerified;
-    Color statusColor = isActivist
-        ? DesignTokens.accentPrimary
-        : (isVerified ? DesignTokens.accentSafe : Colors.grey);
-    String statusTitle = isActivist
-        ? "Verified Activist"
-        : (isVerified ? "Verified User" : "Unverified");
-
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Icon(Icons.shield, color: statusColor, size: 30),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  statusTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                  ),
-                ),
-                const Text(
-                  "Identity & Trust Level",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: DesignTokens.textSecondary,
-                  ),
-                ),
-              ],
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Avatar(user: _user!, radius: 50),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _user!.displayName,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: DesignTokens.textPrimary,
+              ),
             ),
+            if (_user!.isVerified) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.verified,
+                color: DesignTokens.accentSafe,
+                size: 22,
+              ),
+            ],
+            if (_user!.isActivist) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.shield,
+                color: DesignTokens.accentPrimary,
+                size: 22,
+              ),
+            ],
+          ],
+        ),
+        Text(
+          "@${_user!.username}",
+          style: const TextStyle(
+            color: DesignTokens.textSecondary,
+            fontSize: 14,
           ),
-          if (!isActivist)
-            GlassButton(
-              label: "Upgrade",
-              isPrimary: false,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const VerificationScreen()),
-                );
-              },
-            ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        // Bio Placeholder
+        const Text(
+          "Community safety advocate. Believer in data-driven change. 🌍",
+          textAlign: TextAlign.center,
+          style: TextStyle(color: DesignTokens.textPrimary, height: 1.4),
+        ),
+      ],
     );
   }
-}
 
-class _StatItem extends StatelessWidget {
-  final String count;
-  final String label;
-  const _StatItem({required this.count, required this.label});
+  Widget _buildStatsRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildStatItem("${_posts.length}", "Posts"),
+        _buildStatItem("542", "Followers"), // Mock numbers for layout
+        _buildStatItem("128", "Following"),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildStatItem(String count, String label) {
     return Column(
       children: [
         Text(
           count,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        Text(label, style: const TextStyle(color: DesignTokens.textSecondary)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: DesignTokens.textSecondary,
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildPublicActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: GlassButton(
+            label: _isFollowing ? "Following" : "Follow",
+            isPrimary: !_isFollowing,
+            onTap: _handleFollow,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: GlassButton(
+            label: "Message",
+            isPrimary: false,
+            icon: Icons.chat_bubble_outline,
+            onTap: _handleMessage,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMyDashboard() {
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.security,
+                color: _user!.isActivist
+                    ? DesignTokens.accentPrimary
+                    : DesignTokens.textSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _user!.isActivist
+                          ? "Activist Account"
+                          : "Standard Account",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      _user!.isActivist
+                          ? "You have full reporting access."
+                          : "Verify to unlock features.",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: DesignTokens.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!_user!.isActivist) ...[
+            const SizedBox(height: 12),
+            GlassButton(
+              label: "Complete Verification",
+              isPrimary: false,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VerificationScreen()),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostsList() {
+    if (_posts.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          children: [
+            Icon(
+              Icons.grid_off,
+              size: 48,
+              color: DesignTokens.textSecondary.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "No posts yet",
+              style: TextStyle(color: DesignTokens.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _posts.length,
+      itemBuilder: (context, index) {
+        return PostPreview(post: _posts[index]);
+      },
     );
   }
 }

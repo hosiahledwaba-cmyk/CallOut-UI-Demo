@@ -1,5 +1,5 @@
 // lib/screens/post_detail_screen.dart
-import 'dart:ui'; // Added for ImageFilter
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/post.dart';
 import '../models/comment.dart';
@@ -9,6 +9,7 @@ import '../widgets/top_nav.dart';
 import '../widgets/avatar.dart';
 import '../widgets/glass_card.dart';
 import '../theme/design_tokens.dart';
+import 'profile_screen.dart'; // Added Import
 
 class PostDetailScreen extends StatefulWidget {
   final Post post;
@@ -53,6 +54,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  void _navigateToProfile(String userId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ProfileScreen(userId: userId)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GlassScaffold(
@@ -73,24 +81,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Avatar(user: widget.post.author, radius: 24),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      widget.post.author.displayName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                            // Header - Wrapped in GestureDetector
+                            GestureDetector(
+                              onTap: () =>
+                                  _navigateToProfile(widget.post.author.id),
+                              child: Row(
+                                children: [
+                                  Avatar(user: widget.post.author, radius: 24),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget.post.author.displayName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        Text("@${widget.post.author.username}"),
+                                      ],
                                     ),
-                                    Text("@${widget.post.author.username}"),
-                                  ],
-                                ),
-                              ],
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -215,17 +231,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Avatar(user: comment.author, radius: 16),
+            GestureDetector(
+              onTap: () => _navigateToProfile(comment.author.id),
+              child: Avatar(user: comment.author, radius: 16),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    comment.author.displayName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  GestureDetector(
+                    onTap: () => _navigateToProfile(comment.author.id),
+                    child: Text(
+                      comment.author.displayName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),

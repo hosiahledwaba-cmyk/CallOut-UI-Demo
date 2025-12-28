@@ -1,9 +1,13 @@
 // lib/data/api_config.dart
+import '../services/auth_service.dart';
+
 class ApiConfig {
   // 1. Set this to your actual backend URL when ready.
   // Leave it as is to force the app to use Mock Data (since this URL won't resolve).
-  static const String baseUrl = ""; // paste the url below here when ready:
+  static const String baseUrl =
+      "https://serverless-api-test-iota.vercel.app/v1"; // paste the url below here when ready:
   //  "https://serverless-api-test-iota.vercel.app/v1"
+  // "http://10.0.2.2:8000/v1"
 
   // Auth
   static const String login = "$baseUrl/auth/login";
@@ -35,10 +39,23 @@ class ApiConfig {
   static const String searchPosts = "$baseUrl/search/posts";
   static const String notifications = "$baseUrl/notifications";
 
-  static Map<String, String> get headers => {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-  };
+  static Map<String, String> get headers {
+    final baseHeaders = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
 
-  static const Duration timeout = Duration(seconds: 3);
+    // FIX: Get latest token from AuthService
+    final token = AuthService().token;
+
+    if (token != null && token.isNotEmpty) {
+      // Send BOTH standards to ensure backend compatibility
+      baseHeaders["Authorization"] = "Bearer $token";
+      baseHeaders["user_id"] = token;
+    }
+
+    return baseHeaders;
+  }
+
+  static const Duration timeout = Duration(seconds: 19);
 }

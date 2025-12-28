@@ -42,7 +42,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
     setState(() => _isLoading = false);
 
+    // 3. Handle Result
     if (success && mounted) {
+      // FIX: Clear back stack so user can't back-swipe to signup
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const FeedScreen()),
