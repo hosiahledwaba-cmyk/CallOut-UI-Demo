@@ -65,6 +65,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
+  void _openMediaViewer(int index) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            PostMediaViewer(post: widget.post, initialIndex: index),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GlassScaffold(
@@ -132,12 +142,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                       );
                                     },
                                     itemBuilder: (context, index) {
-                                      return CachedBase64Image(
-                                        mediaId: widget.post.mediaIds[index],
-                                        fit: BoxFit
-                                            .contain, // Smart Blur Enabled
-                                        height: 400,
-                                        width: double.infinity,
+                                      return GestureDetector(
+                                        onTap: () => _openMediaViewer(index),
+                                        child: Hero(
+                                          tag:
+                                              'post_media_${widget.post.id}_$index',
+                                          child: CachedBase64Image(
+                                            mediaId:
+                                                widget.post.mediaIds[index],
+                                            fit: BoxFit.contain,
+                                            height: 400,
+                                            width: double.infinity,
+                                          ),
+                                        ),
                                       );
                                     },
                                   ),
@@ -170,13 +187,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             ] else if (widget.post.imageUrl != null &&
                                 widget.post.imageUrl!.isNotEmpty) ...[
                               const SizedBox(height: 16),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  widget.post.imageUrl!,
-                                  height: 400,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
+                              GestureDetector(
+                                onTap: () => _openMediaViewer(0),
+                                child: Hero(
+                                  tag: 'post_img_${widget.post.id}',
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Image.network(
+                                      widget.post.imageUrl!,
+                                      height: 400,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -330,6 +353,155 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// --- New Post Media Viewer Class ---
+
+class PostMediaViewer extends StatefulWidget {
+  final Post post;
+  final int initialIndex;
+
+  const PostMediaViewer({
+    super.key,
+    required this.post,
+    required this.initialIndex,
+  });
+
+  @override
+  State<PostMediaViewer> createState() => _PostMediaViewerState();
+}
+
+class _PostMediaViewerState extends State<PostMediaViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  // Helper to determine total items based on post data structure
+  int get _itemCount {
+    if (widget.post.mediaIds.isNotEmpty) {
+      return widget.post.mediaIds.length;
+    } else if (widget.post.imageUrl != null &&
+        widget.post.imageUrl!.isNotEmpty) {
+      return 1;
+    }
+    return 0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.black.withOpacity(0.4),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.post.author.displayName,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            Text(
+              TimeFormatter.formatRelative(widget.post.timestamp),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Image Slider
+          PageView.builder(
+            controller: _pageController,
+            itemCount: _itemCount,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              Widget content;
+
+              // Handle "mediaIds" list logic
+              if (widget.post.mediaIds.isNotEmpty) {
+                content = Hero(
+                  tag: 'post_media_${widget.post.id}_$index',
+                  child: CachedBase64Image(
+                    mediaId: widget.post.mediaIds[index],
+                    fit: BoxFit.contain,
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.height,
+                  ),
+                );
+              }
+              // Handle single "imageUrl" logic
+              else {
+                content = Hero(
+                  tag: 'post_img_${widget.post.id}',
+                  child: Image.network(
+                    widget.post.imageUrl!,
+                    fit: BoxFit.contain,
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.height,
+                  ),
+                );
+              }
+
+              return Center(
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: content,
+                ),
+              );
+            },
+          ),
+
+          // Caption Overlay (Post Content)
+          if (widget.post.content.isNotEmpty)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.black.withOpacity(0.6),
+                padding: const EdgeInsets.all(16),
+                child: SafeArea(
+                  top: false,
+                  child: Text(
+                    widget.post.content,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
