@@ -7,68 +7,43 @@ import '../models/post.dart';
 import '../services/auth_service.dart';
 
 class ProfileRepository {
-  // GET PROFILE
-  Future<User> getUserProfile(String userId) async {
-    // 1. Check if "Me"
+  Future<User?> getUserProfile(String userId) async {
     final currentUserId = AuthService().currentUser?.id;
+
+    String url;
     if (userId == 'me' || (currentUserId != null && userId == currentUserId)) {
-      return _fetchMyProfile();
+      url = ApiConfig.profile;
+    } else {
+      url = ApiConfig.userProfile.replaceAll('{id}', userId);
     }
 
-    // 2. Try API
     try {
-      final url = ApiConfig.userProfile.replaceAll('{id}', userId);
       final response = await http
           .get(Uri.parse(url), headers: ApiConfig.headers)
           .timeout(ApiConfig.timeout);
 
       if (response.statusCode == 200) {
         return User.fromJson(jsonDecode(response.body));
+      } else {
+        print(
+          "❌ Profile Fetch Failed: ${response.statusCode} - ${response.body}",
+        );
+        return null;
       }
-      throw Exception('Failed');
     } catch (e) {
-      // 3. Mock Fallback
-      await Future.delayed(const Duration(milliseconds: 400));
-      return User(
-        id: userId,
-        username: 'user_$userId',
-        displayName: _getMockName(userId),
-        avatarUrl: 'https://i.pravatar.cc/150?u=$userId',
-        isVerified: userId.hashCode % 2 == 0,
-        isActivist: userId.hashCode % 3 == 0,
-        // Randomly assign "following" status for demo
-        isFollowing: false,
-      );
+      print("❌ Profile Error: $e");
+      return null;
     }
   }
 
-  Future<User> _fetchMyProfile() async {
-    try {
-      // This will now include "Authorization": "Bearer <user_id>"
-      final response = await http
-          .get(Uri.parse(ApiConfig.profile), headers: ApiConfig.headers)
-          .timeout(ApiConfig.timeout);
-
-      if (response.statusCode == 200) {
-        return User.fromJson(jsonDecode(response.body));
-      }
-      throw Exception('Failed');
-    } catch (e) {
-      // Fallback only if API fails
-      return AuthService().currentUser ??
-          const User(
-            id: 'me',
-            username: 'me',
-            displayName: 'Me',
-            avatarUrl: '',
-          );
-    }
-  }
-
-  // GET USER POSTS
   Future<List<Post>> getUserPosts(String userId) async {
+    String targetId = userId;
+    if (userId == 'me') {
+      targetId = "me";
+    }
+
     try {
-      final url = ApiConfig.userPosts.replaceAll('{id}', userId);
+      final url = ApiConfig.userPosts.replaceAll('{id}', targetId);
       final response = await http
           .get(Uri.parse(url), headers: ApiConfig.headers)
           .timeout(ApiConfig.timeout);
@@ -77,75 +52,57 @@ class ProfileRepository {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => Post.fromJson(e)).toList();
       }
-      throw Exception('Failed');
+      return [];
     } catch (e) {
-      await Future.delayed(const Duration(milliseconds: 600));
-      return _getMockUserPosts(userId);
+      print("❌ User Posts Error: $e");
+      return [];
     }
   }
 
-  // FOLLOW ACTION
   Future<bool> toggleFollow(String userId, bool isFollowing) async {
     try {
       final url = ApiConfig.userFollow.replaceAll('{id}', userId);
       final response = isFollowing
-          ? await http
-                .delete(Uri.parse(url), headers: ApiConfig.headers)
-                .timeout(ApiConfig.timeout)
-          : await http
-                .post(Uri.parse(url), headers: ApiConfig.headers)
-                .timeout(ApiConfig.timeout);
+          ? await http.delete(Uri.parse(url), headers: ApiConfig.headers)
+          : await http.post(Uri.parse(url), headers: ApiConfig.headers);
       return response.statusCode == 200;
     } catch (e) {
-      return true; // Optimistic success
+      return false;
     }
   }
 
-  // --- HELPERS ---
-  String _getMockName(String id) {
-    if (id.contains('sarah')) return 'Sarah Jenkins';
-    if (id.contains('safe')) return 'Safe Zone NGO';
-    if (id.contains('emily')) return 'Dr. Emily';
-    return 'Community Member';
+  Future<List<User>> getFollowers(String userId) async {
+    return _fetchUserList(userId, "followers");
   }
 
-  List<Post> _getMockUserPosts(String userId) {
-    // Return empty list for random users to test empty state, or populate for specific ones
-    final user = User(
-      id: userId,
-      username: 'user',
-      displayName: _getMockName(userId),
-      avatarUrl: '',
-    );
+  Future<List<User>> getFollowing(String userId) async {
+    return _fetchUserList(userId, "following");
+  }
 
-    return [
-      Post(
-        id: 'p1_$userId',
-        author: user,
-        content:
-            "We are organizing a neighborhood watch meeting this Friday. DM for details.",
-        timestamp: DateTime.now().subtract(const Duration(days: 1)),
-        likes: 42,
-        comments: 5,
-      ),
-      Post(
-        id: 'p2_$userId',
-        author: user,
-        content:
-            "Safety Tip: Always share your live location with a trusted contact when traveling late.",
-        timestamp: DateTime.now().subtract(const Duration(days: 3)),
-        likes: 156,
-        comments: 12,
-      ),
-      Post(
-        id: 'p3_$userId',
-        author: user,
-        content:
-            "Just verified my profile! Happy to be part of this safe space.",
-        timestamp: DateTime.now().subtract(const Duration(days: 1)),
-        likes: 89,
-        comments: 22,
-      ),
-    ];
+  // Helper to avoid duplicate code
+  Future<List<User>> _fetchUserList(String userId, String endpoint) async {
+    String targetId = userId;
+    if (userId == 'me') {
+      final me = AuthService().currentUser?.id;
+      if (me != null) targetId = me;
+    }
+
+    try {
+      // /users/{id}/followers OR /users/{id}/following
+      final url = "${ApiConfig.users}/$targetId/$endpoint";
+
+      final response = await http
+          .get(Uri.parse(url), headers: ApiConfig.headers)
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> body = jsonDecode(response.body);
+        return body.map((e) => User.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      print("❌ Fetch $endpoint error: $e");
+      return [];
+    }
   }
 }

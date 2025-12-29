@@ -7,7 +7,12 @@ class User {
   final bool isVerified;
   final bool isActivist;
   final bool isAnonymous;
-  final bool isFollowing; // New field
+  final bool isFollowing;
+
+  // NEW: Statistics for Profile Screen
+  final int followersCount;
+  final int followingCount;
+  final int postsCount;
 
   const User({
     required this.id,
@@ -17,7 +22,11 @@ class User {
     this.isVerified = false,
     this.isActivist = false,
     this.isAnonymous = false,
-    this.isFollowing = false, // Default
+    this.isFollowing = false,
+    // Initialize stats with defaults
+    this.followersCount = 0,
+    this.followingCount = 0,
+    this.postsCount = 0,
   });
 
   static const User anonymous = User(
@@ -38,11 +47,20 @@ class User {
       isActivist: json['is_activist'] ?? false,
       isAnonymous: json['is_anonymous'] ?? false,
       isFollowing: json['is_following'] ?? false,
+      // Map statistics
+      followersCount: json['followers_count'] ?? 0,
+      followingCount: json['following_count'] ?? 0,
+      postsCount: json['posts_count'] ?? 0,
     );
   }
 
-  // CopyWith for optimistic updates
-  User copyWith({bool? isFollowing}) {
+  // Updated CopyWith to support optimistic updates for follow status and stats
+  User copyWith({
+    bool? isFollowing,
+    int? followersCount,
+    int? followingCount,
+    int? postsCount,
+  }) {
     return User(
       id: id,
       username: username,
@@ -52,6 +70,9 @@ class User {
       isActivist: isActivist,
       isAnonymous: isAnonymous,
       isFollowing: isFollowing ?? this.isFollowing,
+      followersCount: followersCount ?? this.followersCount,
+      followingCount: followingCount ?? this.followingCount,
+      postsCount: postsCount ?? this.postsCount,
     );
   }
 
@@ -65,6 +86,9 @@ class User {
       'is_activist': isActivist,
       'is_anonymous': isAnonymous,
       'is_following': isFollowing,
+      'followers_count': followersCount,
+      'following_count': followingCount,
+      'posts_count': postsCount,
     };
   }
 }

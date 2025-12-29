@@ -13,6 +13,7 @@ import '../data/profile_repository.dart';
 import '../theme/design_tokens.dart';
 import 'verification_screen.dart';
 import 'chat_screen.dart';
+import 'follow_list_screen.dart'; // IMPORTED NEW SCREEN
 
 class ProfileScreen extends StatefulWidget {
   final String? userId; // Null = Me, String = Other User
@@ -44,33 +45,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final targetId = widget.userId ?? currentUserId;
 
     if (targetId == null) {
-      // Handle edge case: No user logged in and no ID passed
       setState(() => _isLoading = false);
       return;
     }
 
     _isMe = (targetId == currentUserId);
 
-    // Parallel Fetch: Profile + Posts
-    final results = await Future.wait([
-      _repo.getUserProfile(targetId),
-      _repo.getUserPosts(targetId),
-    ]);
+    try {
+      // Parallel Fetch: Profile + Posts
+      final results = await Future.wait([
+        _repo.getUserProfile(targetId),
+        _repo.getUserPosts(targetId),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        _user = results[0] as User;
-        _posts = results[1] as List<Post>;
-        _isFollowing = _user!.isFollowing;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          final profileResult = results[0] as User?;
+          final postsResult = results[1] as List<Post>;
+
+          // CRITICAL FIX: Handle null profile gracefully
+          if (profileResult == null) {
+            print("⚠️ Profile data is null. Keeping loading state false.");
+            _isLoading = false;
+            return;
+          }
+
+          _user = profileResult;
+          _posts = postsResult;
+          _isFollowing = _user!.isFollowing;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading profile: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _handleFollow() {
     setState(() => _isFollowing = !_isFollowing);
     if (_user != null) {
-      _repo.toggleFollow(_user!.id, !_isFollowing); // API Call
+      _repo.toggleFollow(_user!.id, !_isFollowing);
     }
   }
 
@@ -79,6 +96,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => ChatScreen(partner: _user!)),
+    );
+  }
+
+  // --- NEW NAVIGATION LOGIC ---
+  void _navigateToFollowList(FollowListType type) {
+    if (_user == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FollowListScreen(userId: _user!.id, type: type),
+      ),
     );
   }
 
@@ -94,11 +122,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    // 2. Error State
+    // 2. Error State (If user is still null after loading)
     if (_user == null) {
-      return const GlassScaffold(
-        showBottomNav: false,
-        body: Center(child: Text("User not found.")),
+      return GlassScaffold(
+        showBottomNav: widget.userId == null,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("User not found or connection failed."),
+              const SizedBox(height: 16),
+              GlassButton(
+                label: "Retry",
+                onTap: _fetchProfileData,
+                isPrimary: true,
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -196,7 +237,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        // Bio Placeholder
         const Text(
           "Community safety advocate. Believer in data-driven change. 🌍",
           textAlign: TextAlign.center,
@@ -210,28 +250,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildStatItem("${_posts.length}", "Posts"),
-        _buildStatItem("542", "Followers"), // Mock numbers for layout
-        _buildStatItem("128", "Following"),
+        // Posts (Static for now)
+        _buildStatItem("${_user!.postsCount}", "Posts"),
+
+        // Followers (Clickable)
+        _buildStatItem(
+          "${_user!.followersCount}",
+          "Followers",
+          onTap: () => _navigateToFollowList(FollowListType.followers),
+        ),
+
+        // Following (Clickable)
+        _buildStatItem(
+          "${_user!.followingCount}",
+          "Following",
+          onTap: () => _navigateToFollowList(FollowListType.following),
+        ),
       ],
     );
   }
 
-  Widget _buildStatItem(String count, String label) {
-    return Column(
-      children: [
-        Text(
-          count,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: DesignTokens.textSecondary,
+  Widget _buildStatItem(String count, String label, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque, // Ensures larger click area
+      child: Column(
+        children: [
+          Text(
+            count,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-        ),
-      ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: DesignTokens.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
