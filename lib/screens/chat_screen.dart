@@ -2,14 +2,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Import ImagePicker
+import 'package:image_picker/image_picker.dart';
 import '../models/user.dart';
 import '../models/message.dart';
 import '../data/chat_repository.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/glass_card.dart';
-import '../widgets/cached_base64_image.dart'; // Import Media Widget
+import '../widgets/cached_base64_image.dart';
 import '../theme/design_tokens.dart';
 import '../services/auth_service.dart';
 import '../utils/time_formatter.dart';
@@ -26,8 +26,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final ChatRepository _repository = ChatRepository();
   final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController =
-      ScrollController(); // For auto-scroll
+  final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
 
   List<Message> _localMessages = [];
@@ -35,7 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSending = false;
   String? _currentUserId;
   Timer? _pollTimer;
-  File? _selectedImage; // Track attachment
+  File? _selectedImage;
 
   @override
   void initState() {
@@ -74,7 +73,6 @@ class _ChatScreenState extends State<ChatScreen> {
             _localMessages = msgs;
             _isLoading = false;
           });
-          // Scroll to bottom on initial load or new message
           if (shouldUpdate) _scrollToBottom();
         }
       }
@@ -108,7 +106,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     } catch (e) {
-      // Permission denied or other error
+      // Handle error
     }
   }
 
@@ -118,7 +116,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isSending = true);
 
-    // 1. Optimistic Update (Visual only)
+    // 1. Optimistic Update
     final tempMsg = Message(
       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
       sender:
@@ -131,9 +129,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
       text: text,
       timestamp: DateTime.now(),
-      // We don't have mediaId yet for optimistic render,
-      // but we could render local file if we wanted complex logic.
-      // For now, text appears instantly, image appears after sync.
     );
 
     setState(() {
@@ -146,7 +141,7 @@ class _ChatScreenState extends State<ChatScreen> {
     await _repository.sendMessage(
       widget.partner.id,
       text,
-      imageFile: _selectedImage, // Pass image
+      imageFile: _selectedImage,
     );
 
     // 3. Reset & Refresh
@@ -156,6 +151,29 @@ class _ChatScreenState extends State<ChatScreen> {
         _selectedImage = null;
       });
       _loadMessages(isPolling: true);
+    }
+  }
+
+  /// Opens the full-screen media viewer
+  void _openMediaViewer(Message startMessage) {
+    // Filter out only messages that have media
+    final mediaMessages = _localMessages
+        .where((m) => m.mediaId != null)
+        .toList();
+
+    // Find the index of the clicked message within the media-only list
+    final initialIndex = mediaMessages.indexOf(startMessage);
+
+    if (initialIndex != -1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MediaViewerScreen(
+            mediaMessages: mediaMessages,
+            initialIndex: initialIndex,
+          ),
+        ),
+      );
     }
   }
 
@@ -231,7 +249,6 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
                 children: [
-                  // Attachment Button
                   IconButton(
                     icon: Icon(
                       Icons.add_photo_alternate,
@@ -282,7 +299,7 @@ class _ChatScreenState extends State<ChatScreen> {
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.all(4), // Reduced padding for image fit
+        padding: const EdgeInsets.all(4),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
@@ -298,17 +315,23 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // 1. Media Image
+            // 1. Media Image with Tap Handler
             if (msg.mediaId != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedBase64Image(
-                    mediaId: msg.mediaId!,
-                    height: 150,
-                    width: 200,
-                    fit: BoxFit.cover,
+              GestureDetector(
+                onTap: () => _openMediaViewer(msg),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Hero(
+                    tag: 'media_${msg.mediaId}',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedBase64Image(
+                        mediaId: msg.mediaId!,
+                        height: 150,
+                        width: 200,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -341,6 +364,128 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// --- New Media Viewer Class ---
+
+class MediaViewerScreen extends StatefulWidget {
+  final List<Message> mediaMessages;
+  final int initialIndex;
+
+  const MediaViewerScreen({
+    super.key,
+    required this.mediaMessages,
+    required this.initialIndex,
+  });
+
+  @override
+  State<MediaViewerScreen> createState() => _MediaViewerScreenState();
+}
+
+class _MediaViewerScreenState extends State<MediaViewerScreen> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.black.withOpacity(0.4),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.mediaMessages[_currentIndex].sender.displayName,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            Text(
+              TimeFormatter.formatChatTime(
+                widget.mediaMessages[_currentIndex].timestamp,
+              ),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Image Slider
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.mediaMessages.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final msg = widget.mediaMessages[index];
+              return Center(
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: Hero(
+                    tag: 'media_${msg.mediaId}',
+                    child: CachedBase64Image(
+                      mediaId: msg.mediaId!,
+                      // Passing null/large dimensions to ensure full quality in viewer
+                      // assuming widget handles fit nicely or defaults to containment
+                      fit: BoxFit.contain,
+                      width: MediaQuery.of(context).size.width,
+                      height: MediaQuery.of(context).size.height,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Caption Overlay (WhatsApp style)
+          if (widget.mediaMessages[_currentIndex].text.isNotEmpty)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.black.withOpacity(0.6),
+                padding: const EdgeInsets.all(16),
+                child: SafeArea(
+                  top: false,
+                  child: Text(
+                    widget.mediaMessages[_currentIndex].text,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
