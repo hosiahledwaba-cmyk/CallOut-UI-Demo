@@ -13,6 +13,12 @@ class ResourceDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Check Theme
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.4,
@@ -24,12 +30,18 @@ class ResourceDetailSheet extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
             child: Container(
               decoration: BoxDecoration(
-                color: DesignTokens.glassWhite.withOpacity(0.85),
+                // 2. Swap Background
+                color: isDark
+                    ? DesignTokens.glassDark.withOpacity(0.9)
+                    : DesignTokens.glassWhite.withOpacity(0.85),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(32),
                 ),
-                border: const Border(
-                  top: BorderSide(color: Colors.white, width: 1.0),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? DesignTokens.glassBorderDark : Colors.white,
+                    width: 1.0,
+                  ),
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -83,12 +95,18 @@ class ResourceDetailSheet extends StatelessWidget {
                                   ?.copyWith(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
+                                    color: textColor, // Dynamic
                                   ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               "${resource.distance} away • ${_getCategoryString(resource.category)}",
-                              style: Theme.of(context).textTheme.bodyMedium,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: isDark
+                                        ? DesignTokens.textSecondaryDark
+                                        : DesignTokens.textSecondary,
+                                  ),
                             ),
                           ],
                         ),
@@ -137,17 +155,21 @@ class ResourceDetailSheet extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     "About",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: textColor, // Dynamic
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     resource.description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       height: 1.5,
-                      color: DesignTokens.textPrimary,
+                      color: textColor, // Dynamic
                     ),
                   ),
 
@@ -161,9 +183,7 @@ class ResourceDetailSheet extends StatelessWidget {
                           label: "Call Now",
                           icon: CupertinoIcons.phone_fill,
                           isPrimary: true,
-                          onTap: () {
-                            // TODO: Launch Url
-                          },
+                          onTap: () {},
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -172,9 +192,7 @@ class ResourceDetailSheet extends StatelessWidget {
                           label: "Directions",
                           icon: CupertinoIcons.location_fill,
                           isPrimary: false,
-                          onTap: () {
-                            // TODO: Launch Maps
-                          },
+                          onTap: () {},
                         ),
                       ),
                     ],

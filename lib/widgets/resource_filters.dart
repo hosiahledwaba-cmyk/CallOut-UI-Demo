@@ -37,6 +37,29 @@ class ResourceFilters extends StatelessWidget {
     ResourceCategory? category,
   ) {
     final isSelected = selectedCategory == category;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Determine colors based on Theme and Selection state
+    Color backgroundColor;
+    Color textColor;
+    Color borderColor;
+
+    if (isSelected) {
+      backgroundColor = DesignTokens.accentPrimary;
+      textColor = Colors.white;
+      borderColor = Colors.transparent;
+    } else {
+      // Unselected State
+      if (isDark) {
+        backgroundColor = DesignTokens.glassDark; // Dark Glass
+        textColor = DesignTokens.textPrimaryDark.withOpacity(0.8);
+        borderColor = DesignTokens.glassBorderDark;
+      } else {
+        backgroundColor = DesignTokens.glassWhite.withOpacity(0.65);
+        textColor = DesignTokens.textPrimary;
+        borderColor = DesignTokens.glassBorder;
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -46,14 +69,9 @@ class ResourceFilters extends StatelessWidget {
           duration: DesignTokens.durationFast,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? DesignTokens.accentPrimary
-                : DesignTokens.glassWhite.withOpacity(0.65),
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isSelected ? Colors.transparent : DesignTokens.glassBorder,
-              width: 1,
-            ),
+            border: Border.all(color: borderColor, width: 1),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
@@ -67,7 +85,7 @@ class ResourceFilters extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : DesignTokens.textPrimary,
+              color: textColor,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),

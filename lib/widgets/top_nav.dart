@@ -24,29 +24,41 @@ class TopNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Check Theme
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
       bottom: false,
       child: Padding(
-        // Floating margin (sides and top)
         padding: const EdgeInsets.symmetric(
           horizontal: DesignTokens.paddingMedium,
           vertical: 8,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(32), // Fully rounded pill shape
+          borderRadius: BorderRadius.circular(32),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), // Strong blur
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
             child: Container(
-              height: 60, // Fixed compact height
+              height: 60,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                // Highly translucent white for frosted effect
-                color: DesignTokens.glassWhite.withOpacity(0.5),
+                // 2. Swap Background
+                color: isDark
+                    ? DesignTokens.glassDark
+                    : DesignTokens.glassWhite.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: DesignTokens.glassBorder, width: 1.0),
+                // 3. Swap Border
+                border: Border.all(
+                  color: isDark
+                      ? DesignTokens.glassBorderDark
+                      : DesignTokens.glassBorder,
+                  width: 1.0,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: DesignTokens.glassShadow.withOpacity(0.1),
+                    color: isDark
+                        ? DesignTokens.glassShadowDark
+                        : DesignTokens.glassShadow.withOpacity(0.1),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
@@ -54,26 +66,29 @@ class TopNav extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // --- Left Section (Back or Settings) ---
-                  SizedBox(width: 40, child: _buildLeading(context)),
+                  // --- Left Section ---
+                  SizedBox(width: 40, child: _buildLeading(context, isDark)),
 
-                  // --- Center Section (Title) ---
+                  // --- Center Section ---
                   Expanded(
                     child: Text(
                       title,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
-                        color: DesignTokens.textPrimary,
+                        // 4. Swap Text Color
+                        color: isDark
+                            ? DesignTokens.textPrimaryDark
+                            : DesignTokens.textPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
                   ),
 
-                  // --- Right Section (Actions + Notify) ---
+                  // --- Right Section ---
                   SizedBox(
                     width: null,
                     child: Row(
@@ -95,18 +110,22 @@ class TopNav extends StatelessWidget {
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: DesignTokens.glassWhite.withOpacity(0.3),
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.1)
+                                    : DesignTokens.glassWhite.withOpacity(0.3),
                                 shape: BoxShape.circle,
                               ),
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     CupertinoIcons.bell,
                                     size: 20,
-                                    color: DesignTokens.textPrimary,
+                                    color: isDark
+                                        ? DesignTokens.textPrimaryDark
+                                        : DesignTokens.textPrimary,
                                   ),
-                                  // Red Dot Indicator
+                                  // Red Dot
                                   Positioned(
                                     right: 8,
                                     top: 8,
@@ -124,7 +143,6 @@ class TopNav extends StatelessWidget {
                             ),
                           ),
                         ] else if (extraActions == null) ...[
-                          // Spacer to balance the title if no icons on right
                           const SizedBox(width: 40),
                         ],
                       ],
@@ -139,17 +157,18 @@ class TopNav extends StatelessWidget {
     );
   }
 
-  Widget? _buildLeading(BuildContext context) {
+  Widget? _buildLeading(BuildContext context, bool isDark) {
+    final iconColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+
     if (showBack) {
       return GestureDetector(
         onTap: () => Navigator.pop(context),
         child: Container(
           alignment: Alignment.centerLeft,
-          color: Colors.transparent, // Hitbox expansion
-          child: const Icon(
-            CupertinoIcons.back,
-            color: DesignTokens.textPrimary,
-          ),
+          color: Colors.transparent,
+          child: Icon(CupertinoIcons.back, color: iconColor),
         ),
       );
     }
@@ -162,11 +181,8 @@ class TopNav extends StatelessWidget {
         ),
         child: Container(
           alignment: Alignment.centerLeft,
-          color: Colors.transparent, // Hitbox expansion
-          child: const Icon(
-            CupertinoIcons.settings,
-            color: DesignTokens.textPrimary,
-          ),
+          color: Colors.transparent,
+          child: Icon(CupertinoIcons.settings, color: iconColor),
         ),
       );
     }

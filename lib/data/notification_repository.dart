@@ -8,29 +8,47 @@ class NotificationRepository {
   Future<List<NotificationItem>> getNotifications() async {
     try {
       final response = await http
-          .get(Uri.parse(ApiConfig.notifications), headers: ApiConfig.headers)
+          .get(
+            Uri.parse("${ApiConfig.baseUrl}/notifications"),
+            headers: ApiConfig.headers,
+          )
           .timeout(ApiConfig.timeout);
 
       if (response.statusCode == 200) {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => NotificationItem.fromJson(e)).toList();
+      } else {
+        print("❌ Notifications API Error: ${response.statusCode}");
       }
-      throw Exception('Failed');
     } catch (e) {
-      return [
-        NotificationItem(
-          id: 'n1',
-          message: "Safety Alert: Protest near City Center.",
-          isUrgent: true,
-          timestamp: DateTime.now(),
-        ),
-        NotificationItem(
-          id: 'n2',
-          message: "Sarah liked your post.",
-          isUrgent: false,
-          timestamp: DateTime.now(),
-        ),
-      ];
+      print("❌ Notifications Network Error: $e");
+    }
+    // Return empty list on failure, do NOT return mocks
+    return [];
+  }
+
+  Future<bool> markAsRead(String id) async {
+    try {
+      final response = await http.patch(
+        Uri.parse("${ApiConfig.baseUrl}/notifications/$id/read"),
+        headers: ApiConfig.headers,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Mark Read Error: $e");
+      return false;
+    }
+  }
+
+  Future<bool> markAllRead() async {
+    try {
+      final response = await http.patch(
+        Uri.parse("${ApiConfig.baseUrl}/notifications/read-all"),
+        headers: ApiConfig.headers,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
     }
   }
 }

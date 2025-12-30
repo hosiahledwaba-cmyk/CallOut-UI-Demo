@@ -14,16 +14,23 @@ class ResourceCarouselCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final catColor = _getCategoryColor(resource.category);
+    // 1. Check Theme
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryTextColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      // GlassCard acts as the background
       child: GlassCard(
         onTap: onTap,
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, // Prevents expanding unnecessarily
+          mainAxisSize: MainAxisSize.min,
           children: [
             // --- HEADER ---
             Row(
@@ -48,9 +55,10 @@ class ResourceCarouselCard extends StatelessWidget {
                     children: [
                       Text(
                         resource.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 17,
+                          color: primaryTextColor, // Dynamic Color
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -60,15 +68,15 @@ class ResourceCarouselCard extends StatelessWidget {
                         children: [
                           Text(
                             resource.distance,
-                            style: const TextStyle(
-                              color: DesignTokens.textSecondary,
+                            style: TextStyle(
+                              color: secondaryTextColor, // Dynamic Color
                               fontSize: 13,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Text(
+                          Text(
                             "•",
-                            style: TextStyle(color: DesignTokens.textSecondary),
+                            style: TextStyle(color: secondaryTextColor),
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -92,14 +100,13 @@ class ResourceCarouselCard extends StatelessWidget {
             const SizedBox(height: 12),
 
             // --- DESCRIPTION ---
-            // Wrapped in Flexible to handle potential height constraints gracefully
             Flexible(
               child: Text(
                 resource.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: DesignTokens.textSecondary,
+                style: TextStyle(
+                  color: secondaryTextColor, // Dynamic Color
                   fontSize: 14,
                   height: 1.3,
                 ),
@@ -108,7 +115,9 @@ class ResourceCarouselCard extends StatelessWidget {
 
             const SizedBox(height: 12),
             Divider(
-              color: DesignTokens.glassBorder.withOpacity(0.5),
+              color: isDark
+                  ? DesignTokens.glassBorderDark.withOpacity(0.5)
+                  : DesignTokens.glassBorder.withOpacity(0.5),
               height: 1,
             ),
             const SizedBox(height: 12),
@@ -123,18 +132,21 @@ class ResourceCarouselCard extends StatelessWidget {
                   gradient: DesignTokens.primaryGradient,
                   iconColor: Colors.white,
                   onTap: () {},
+                  isDark: isDark,
                 ),
                 _CircularActionButton(
                   icon: CupertinoIcons.location_fill,
                   label: "Route",
                   iconColor: DesignTokens.accentSecondary,
                   onTap: () {},
+                  isDark: isDark,
                 ),
                 _CircularActionButton(
                   icon: CupertinoIcons.share,
                   label: "Share",
-                  iconColor: DesignTokens.textSecondary,
+                  iconColor: secondaryTextColor,
                   onTap: () {},
+                  isDark: isDark,
                 ),
               ],
             ),
@@ -144,6 +156,7 @@ class ResourceCarouselCard extends StatelessWidget {
     );
   }
 
+  // ... (Icons and Color methods remain same) ...
   IconData _getCategoryIcon(ResourceCategory category) {
     switch (category) {
       case ResourceCategory.police:
@@ -183,6 +196,7 @@ class _CircularActionButton extends StatelessWidget {
   final Color iconColor;
   final VoidCallback onTap;
   final Gradient? gradient;
+  final bool isDark; // Added param
 
   const _CircularActionButton({
     required this.icon,
@@ -190,6 +204,7 @@ class _CircularActionButton extends StatelessWidget {
     required this.iconColor,
     required this.onTap,
     this.gradient,
+    required this.isDark,
   });
 
   @override
@@ -212,10 +227,16 @@ class _CircularActionButton extends StatelessWidget {
                 gradient: gradient,
                 color: isPrimary
                     ? null
-                    : DesignTokens.glassWhite.withOpacity(0.4),
+                    : (isDark
+                          ? DesignTokens.glassDark
+                          : DesignTokens.glassWhite.withOpacity(0.4)),
                 border: isPrimary
                     ? null
-                    : Border.all(color: DesignTokens.glassBorder),
+                    : Border.all(
+                        color: isDark
+                            ? DesignTokens.glassBorderDark
+                            : DesignTokens.glassBorder,
+                      ),
                 boxShadow: isPrimary
                     ? [
                         BoxShadow(
@@ -233,9 +254,11 @@ class _CircularActionButton extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: DesignTokens.textSecondary,
+            color: isDark
+                ? DesignTokens.textSecondaryDark
+                : DesignTokens.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),

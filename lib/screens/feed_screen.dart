@@ -18,36 +18,70 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
+  bool _isInitialLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (!mounted) return;
+    final hasData = context.read<AppStateNotifier>().feed.isNotEmpty;
+    if (hasData) {
+      setState(() => _isInitialLoading = false);
+    }
+    await context.read<AppStateNotifier>().refresh();
+    if (mounted) {
+      setState(() => _isInitialLoading = false);
+    }
+  }
+
   void _navigateToCreatePost() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const CreatePostScreen()),
     );
 
+    if (!mounted) return;
+
     if (result == true) {
-      context.read<AppStateNotifier>().refresh(force: true);
+      setState(() => _isInitialLoading = true);
+      await context.read<AppStateNotifier>().refresh(force: true);
+      if (mounted) setState(() => _isInitialLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. WATCH GLOBAL STATE
     final appState = context.watch<AppStateNotifier>();
     final posts = appState.feed;
-
     final currentUser = AuthService().currentUser;
-    // Activists can post, or anyone if you change policy
     final bool canPost = currentUser?.isActivist ?? true;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final iconColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
 
     return GlassScaffold(
       currentTabIndex: 0,
+
+      // UPDATED FAB
       floatingActionButton: canPost
           ? FloatingActionButton(
               onPressed: _navigateToCreatePost,
               backgroundColor: DesignTokens.accentPrimary,
-              child: const Icon(Icons.add),
+              elevation: 4, // Slight shadow for depth
+              shape: const CircleBorder(), // Forces perfect circle
+              child: const Icon(Icons.add, color: Colors.white, size: 28),
             )
           : null,
+
       body: Column(
         children: [
           TopNav(
@@ -57,72 +91,76 @@ class _FeedScreenState extends State<FeedScreen> {
             extraActions: [
               IconButton(
                 icon: const Icon(Icons.refresh, size: 22),
-                color: DesignTokens.textPrimary,
-                onPressed: () =>
-                    context.read<AppStateNotifier>().refresh(force: true),
+                color: textColor,
+                onPressed: () {
+                  setState(() => _isInitialLoading = true);
+                  _loadData();
+                },
                 tooltip: "Refresh Feed",
               ),
             ],
           ),
           Expanded(
-            child: posts.isEmpty
+            child: posts.isEmpty && _isInitialLoading
                 ? const Center(
                     child: CircularProgressIndicator(
                       color: DesignTokens.accentPrimary,
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: () async =>
-                        context.read<AppStateNotifier>().refresh(force: true),
+                    onRefresh: _loadData,
                     color: DesignTokens.accentPrimary,
                     child: ListView.builder(
                       key: const PageStorageKey('global_feed_list'),
-                      padding: const EdgeInsets.all(DesignTokens.paddingMedium),
-                      // Add +1 for the Emergency Header
+                      padding: const EdgeInsets.only(
+                        left: DesignTokens.paddingMedium,
+                        right: DesignTokens.paddingMedium,
+                        top: DesignTokens.paddingMedium,
+                        bottom:
+                            120, // INCREASED PADDING so last post isn't hidden by FAB
+                      ),
                       itemCount: posts.length + 1,
                       itemBuilder: (context, index) {
                         if (index == 0) {
-                          // Emergency Header
-                          return const Padding(
-                            padding: EdgeInsets.only(
+                          return Padding(
+                            padding: const EdgeInsets.only(
                               bottom: DesignTokens.paddingMedium,
                             ),
                             child: GlassCard(
                               isAlert: true,
                               child: Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.sos,
                                     color: DesignTokens.accentAlert,
                                     size: 32,
                                   ),
-                                  SizedBox(width: 12),
+                                  const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       "Emergency Help Needed? \nTap for immediate assistance.",
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: DesignTokens.textPrimary,
+                                        color: textColor,
                                       ),
                                     ),
                                   ),
-                                  Icon(
-                                    Icons.chevron_right,
-                                    color: DesignTokens.textSecondary,
-                                  ),
+                                  Icon(Icons.chevron_right, color: iconColor),
                                 ],
                               ),
                             ),
                           );
                         }
-
-                        final post = posts[index - 1];
-                        return PostPreview(key: ValueKey(post.id), post: post);
+                        final postIndex = index - 1;
+                        if (postIndex >= posts.length) return const SizedBox();
+                        return PostPreview(
+                          key: ValueKey(posts[postIndex].id),
+                          post: posts[postIndex],
+                        );
                       },
                     ),
                   ),
           ),
-          const SizedBox(height: 80),
         ],
       ),
     );

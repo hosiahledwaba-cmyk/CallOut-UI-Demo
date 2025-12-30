@@ -1,9 +1,11 @@
 // lib/services/auth_service.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io'; // Import for Platform check
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // Import for Token Cleanup
 import '../models/user.dart';
 import '../data/api_config.dart';
 
@@ -20,7 +22,12 @@ class AuthService {
   String? get token => _token;
   bool get isAuthenticated => _token != null && _token!.isNotEmpty;
 
-  // --- 1. SESSION MANAGEMENT (Fixes Statelessness) ---
+  // Helper for Protected Endpoints
+  Map<String, String> get _authHeaders {
+    return {...ApiConfig.headers, 'Authorization': 'Bearer $_token'};
+  }
+
+  // --- 1. SESSION MANAGEMENT ---
 
   Future<void> loadSession() async {
     if (_isInitialized) return;
@@ -33,7 +40,7 @@ class AuthService {
       try {
         _token = storedToken;
         _currentUser = User.fromJson(jsonDecode(storedUser));
-        print("✅ Session Restored: ${_currentUser?.username} ($_token)");
+        print("✅ Session Restored: ${_currentUser?.username}");
       } catch (e) {
         print("⚠️ Session Corrupt: Clearing storage");
         await logout();
@@ -67,7 +74,7 @@ class AuthService {
       final response = await http
           .post(
             Uri.parse(ApiConfig.login),
-            headers: ApiConfig.headers, // Use base headers
+            headers: ApiConfig.headers,
             body: jsonEncode({
               'username': username,
               'password': _hashPassword(password),
@@ -77,8 +84,11 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final user = User.fromJson(jsonDecode(response.body));
-        // FIX: Save ID immediately so subsequent requests work
         await _persistSession(user.id, user);
+
+        // RE-INIT PUSH: Ensure token is sent for this specific user after login
+        _refreshDeviceToken();
+
         return true;
       }
     } catch (e) {
@@ -104,6 +114,10 @@ class AuthService {
       if (response.statusCode == 201) {
         final user = User.fromJson(jsonDecode(response.body));
         await _persistSession(user.id, user);
+
+        // RE-INIT PUSH
+        _refreshDeviceToken();
+
         return true;
       }
     } catch (e) {
@@ -125,12 +139,55 @@ class AuthService {
     return false;
   }
 
+  // --- 3. CLEANUP (Updated for Notifications) ---
+
   Future<void> logout() async {
+    // 1. Tell Backend to remove this device token
+    // This ensures you don't get notifications for the old user
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null && _token != null) {
+        print("🔌 Removing Device Token...");
+        await http.delete(
+          // Assuming ApiConfig has baseUrl. If not, replace with hardcoded string
+          Uri.parse("${ApiConfig.baseUrl}/users/me/device-token"),
+          headers: _authHeaders,
+          body: jsonEncode({
+            "token": fcmToken,
+            "platform": Platform.isAndroid ? "android" : "ios",
+          }),
+        );
+      }
+    } catch (e) {
+      print("⚠️ Log out cleanup error (Token might already be gone): $e");
+    }
+
+    // 2. Clear Local Storage
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('auth_user_json');
     _currentUser = null;
     _token = null;
+    print("👋 Logged out successfully");
+  }
+
+  // Helper to re-send token after login (Just in case)
+  void _refreshDeviceToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await http.post(
+          Uri.parse("${ApiConfig.baseUrl}/users/me/device-token"),
+          headers: _authHeaders,
+          body: jsonEncode({
+            "token": token,
+            "platform": Platform.isAndroid ? "android" : "ios",
+          }),
+        );
+      }
+    } catch (e) {
+      print("Token Refresh Warning: $e");
+    }
   }
 
   // --- MOCK LOGIC ---

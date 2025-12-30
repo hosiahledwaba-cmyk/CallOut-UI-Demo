@@ -1,6 +1,6 @@
 // lib/screens/search_screen.dart
 import 'package:flutter/material.dart';
-// HIDE Path to avoid conflicts
+// HIDE Path to avoid conflicts with Flutter rendering
 import 'package:flutter_map/flutter_map.dart' hide Path;
 import 'package:latlong2/latlong.dart' hide Path;
 
@@ -12,8 +12,8 @@ import '../widgets/resource_detail_sheet.dart';
 import '../widgets/post_preview.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/avatar.dart';
-import '../widgets/bottom_nav.dart'; // Added Import
-import '../widgets/top_nav.dart'; // Added Import
+import '../widgets/bottom_nav.dart';
+import '../widgets/top_nav.dart';
 import '../theme/design_tokens.dart';
 import '../data/search_repository.dart';
 import '../models/resource.dart';
@@ -72,6 +72,14 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  void _onTabChanged(int index) {
+    setState(() => _selectedTabIndex = index);
+  }
+
+  void _onCategorySelected(ResourceCategory? category) {
+    setState(() => _selectedCategory = category);
+  }
+
   List<Resource> get _filteredResources {
     if (_selectedCategory == null) return _allResources;
     return _allResources.where((r) => r.category == _selectedCategory).toList();
@@ -80,37 +88,34 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isMapMode = _selectedTabIndex == 2;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       extendBody: true,
       resizeToAvoidBottomInset: false,
+      backgroundColor: isDark
+          ? DesignTokens.backgroundTopDark
+          : DesignTokens.backgroundTop,
       body: Stack(
         children: [
-          // --- LAYER 0: Background ---
+          // --- LAYER 0: Background & Map ---
           IndexedStack(
             index: isMapMode ? 1 : 0,
             children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(-0.5, -0.6),
-                    radius: 1.2,
-                    colors: [
-                      DesignTokens.backgroundTop,
-                      DesignTokens.backgroundBottom,
-                      Color(0xFFE6E6FA),
-                    ],
-                  ),
-                ),
+              _SearchBackground(isDark: isDark),
+              _MapLayer(
+                mapController: _mapController,
+                resources: _filteredResources,
+                pageController: _pageController,
+                isDark: isDark,
               ),
-              _buildMapLayer(),
             ],
           ),
 
           // --- LAYER 1: Foreground Content ---
           Column(
             children: [
-              // 1. Top Navigation
+              // 1. Top Nav
               const TopNav(
                 title: "Explore",
                 showBack: false,
@@ -118,35 +123,46 @@ class _SearchScreenState extends State<SearchScreen> {
                 showNotificationIcon: true,
               ),
 
-              // 2. Search & Filter Area
+              // 2. Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: GlassSearchBar(onChanged: _onSearchChanged),
               ),
               const SizedBox(height: 12),
 
+              // 3. Tab Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildGlassTabBar(),
+                child: _SearchTabBar(
+                  selectedIndex: _selectedTabIndex,
+                  onTabChanged: _onTabChanged,
+                  isDark: isDark,
+                ),
               ),
               const SizedBox(height: 12),
 
-              // 3. Main Content
+              // 4. Content Views
               Expanded(
                 child: IndexedStack(
                   index: _selectedTabIndex,
                   children: [
-                    _buildCommunityTab(),
-                    _buildPeopleTab(),
-                    _buildResourcesOverlay(),
+                    _CommunityList(postsFuture: _postsFuture),
+                    _PeopleList(usersFuture: _usersFuture),
+                    _ResourcesOverlay(
+                      selectedCategory: _selectedCategory,
+                      onCategorySelected: _onCategorySelected,
+                      resources: _filteredResources,
+                      pageController: _pageController,
+                      mapController: _mapController,
+                      context: context,
+                    ),
                   ],
                 ),
               ),
             ],
           ),
 
-          // --- LAYER 2: Bottom Navigation ---
-          // Positioned at the bottom of the stack
+          // --- LAYER 2: Bottom Nav ---
           const Positioned(
             left: 0,
             right: 0,
@@ -157,163 +173,65 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
+}
 
-  // --- MAP LAYER ---
-  Widget _buildMapLayer() {
-    return FlutterMap(
-      mapController: _mapController,
-      options: const MapOptions(
-        initialCenter: LatLng(
-          SearchRepository.centerLat,
-          SearchRepository.centerLng,
+// =============================================================================
+// SUB-WIDGETS (Refactored for Modularity & Theming)
+// =============================================================================
+
+class _SearchBackground extends StatelessWidget {
+  final bool isDark;
+  const _SearchBackground({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(-0.5, -0.6),
+          radius: 1.2,
+          colors: isDark
+              ? [
+                  DesignTokens.backgroundTopDark,
+                  DesignTokens.backgroundBottomDark,
+                  const Color(0xFF1E1E2C), // Deep accent for dark mode
+                ]
+              : [
+                  DesignTokens.backgroundTop,
+                  DesignTokens.backgroundBottom,
+                  const Color(0xFFE6E6FA), // Lavender for light mode
+                ],
         ),
-        initialZoom: 13.5,
-        interactionOptions: InteractionOptions(flags: InteractiveFlag.all),
       ),
-      children: [
-        TileLayer(
-          urlTemplate:
-              'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-          subdomains: const ['a', 'b', 'c', 'd'],
-        ),
-        MarkerLayer(
-          markers: _filteredResources.map((resource) {
-            return Marker(
-              point: LatLng(resource.latitude, resource.longitude),
-              width: 50,
-              height: 50,
-              alignment: Alignment.topCenter,
-              child: GestureDetector(
-                onTap: () {
-                  _mapController.move(
-                    LatLng(resource.latitude, resource.longitude),
-                    15,
-                  );
-                  final index = _filteredResources.indexOf(resource);
-                  if (index != -1) {
-                    _pageController.animateToPage(
-                      index,
-                      duration: DesignTokens.durationMedium,
-                      curve: DesignTokens.animationCurve,
-                    );
-                  }
-                },
-                child: _buildGlassMarker(resource),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
     );
   }
+}
 
-  // --- TAB 3: RESOURCES OVERLAY ---
-  Widget _buildResourcesOverlay() {
-    return Column(
-      children: [
-        ResourceFilters(
-          selectedCategory: _selectedCategory,
-          onCategorySelected: (cat) {
-            setState(() => _selectedCategory = cat);
-          },
-        ),
+class _SearchTabBar extends StatelessWidget {
+  final int selectedIndex;
+  final Function(int) onTabChanged;
+  final bool isDark;
 
-        const Spacer(),
+  const _SearchTabBar({
+    required this.selectedIndex,
+    required this.onTabChanged,
+    required this.isDark,
+  });
 
-        // Resource Carousel
-        if (_allResources.isNotEmpty)
-          SizedBox(
-            height: 260,
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _filteredResources.length,
-              onPageChanged: (index) {
-                final r = _filteredResources[index];
-                _mapController.move(LatLng(r.latitude, r.longitude), 15);
-              },
-              itemBuilder: (context, index) {
-                return ResourceCarouselCard(
-                  resource: _filteredResources[index],
-                  onTap: () => _showResourceDetails(_filteredResources[index]),
-                );
-              },
-            ),
-          ),
-
-        // Increased spacer to clear the Floating Bottom Nav
-        const SizedBox(height: 100),
-      ],
-    );
-  }
-
-  void _showResourceDetails(Resource resource) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ResourceDetailSheet(resource: resource),
-    );
-  }
-
-  // --- TAB 1 & 2 ---
-  Widget _buildCommunityTab() {
-    return FutureBuilder<List<Post>>(
-      future: _postsFuture,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.isEmpty)
-          return const Center(child: Text("No posts found."));
-
-        return ListView.builder(
-          // Extra bottom padding to clear BottomNav
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-          itemCount: snapshot.data!.length,
-          itemBuilder: (c, i) => PostPreview(post: snapshot.data![i]),
-        );
-      },
-    );
-  }
-
-  Widget _buildPeopleTab() {
-    return FutureBuilder<List<User>>(
-      future: _usersFuture,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.isEmpty)
-          return const Center(child: Text("No users found."));
-
-        return ListView.builder(
-          // Extra bottom padding to clear BottomNav
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-          itemCount: snapshot.data!.length,
-          itemBuilder: (c, i) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: GlassCard(
-              child: ListTile(
-                leading: Avatar(user: snapshot.data![i], radius: 24),
-                title: Text(
-                  snapshot.data![i].displayName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text("@${snapshot.data![i].username}"),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // --- HELPERS ---
-  Widget _buildGlassTabBar() {
+  @override
+  Widget build(BuildContext context) {
     return Container(
       height: 45,
       decoration: BoxDecoration(
-        color: DesignTokens.glassWhite.withOpacity(0.4),
+        color: isDark
+            ? DesignTokens.glassDark
+            : DesignTokens.glassWhite.withOpacity(0.4),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: DesignTokens.glassBorder),
+        border: Border.all(
+          color: isDark
+              ? DesignTokens.glassBorderDark
+              : DesignTokens.glassBorder,
+        ),
       ),
       child: Row(
         children: [
@@ -326,10 +244,21 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildTabItem(String label, int index) {
-    final bool isSelected = _selectedTabIndex == index;
+    final bool isSelected = selectedIndex == index;
+
+    // Determine Text Color
+    Color textColor;
+    if (isSelected) {
+      textColor = Colors.white;
+    } else {
+      textColor = isDark
+          ? DesignTokens.textPrimaryDark
+          : DesignTokens.textPrimary;
+    }
+
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTabIndex = index),
+        onTap: () => onTabChanged(index),
         child: AnimatedContainer(
           duration: DesignTokens.durationFast,
           margin: const EdgeInsets.all(4),
@@ -341,13 +270,175 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : DesignTokens.textPrimary,
+              color: textColor,
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CommunityList extends StatelessWidget {
+  final Future<List<Post>>? postsFuture;
+  const _CommunityList({required this.postsFuture});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return FutureBuilder<List<Post>>(
+      future: postsFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+        if (snapshot.data!.isEmpty) {
+          return Center(
+            child: Text(
+              "No posts found.",
+              style: TextStyle(
+                color: isDark
+                    ? DesignTokens.textSecondaryDark
+                    : DesignTokens.textSecondary,
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+          itemCount: snapshot.data!.length,
+          itemBuilder: (c, i) => PostPreview(post: snapshot.data![i]),
+        );
+      },
+    );
+  }
+}
+
+class _PeopleList extends StatelessWidget {
+  final Future<List<User>>? usersFuture;
+  const _PeopleList({required this.usersFuture});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return FutureBuilder<List<User>>(
+      future: usersFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+        if (snapshot.data!.isEmpty) {
+          return Center(
+            child: Text(
+              "No users found.",
+              style: TextStyle(
+                color: isDark
+                    ? DesignTokens.textSecondaryDark
+                    : DesignTokens.textSecondary,
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+          itemCount: snapshot.data!.length,
+          itemBuilder: (c, i) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: GlassCard(
+              child: ListTile(
+                leading: Avatar(user: snapshot.data![i], radius: 24),
+                title: Text(
+                  snapshot.data![i].displayName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? DesignTokens.textPrimaryDark
+                        : DesignTokens.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  "@${snapshot.data![i].username}",
+                  style: TextStyle(
+                    color: isDark
+                        ? DesignTokens.textSecondaryDark
+                        : DesignTokens.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MapLayer extends StatelessWidget {
+  final MapController mapController;
+  final List<Resource> resources;
+  final PageController pageController;
+  final bool isDark;
+
+  const _MapLayer({
+    required this.mapController,
+    required this.resources,
+    required this.pageController,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FlutterMap(
+      mapController: mapController,
+      options: const MapOptions(
+        initialCenter: LatLng(
+          SearchRepository.centerLat,
+          SearchRepository.centerLng,
+        ),
+        initialZoom: 13.5,
+        interactionOptions: InteractionOptions(flags: InteractiveFlag.all),
+      ),
+      children: [
+        TileLayer(
+          // Switch to Dark Matter tiles in Dark Mode
+          urlTemplate: isDark
+              ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+              : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          subdomains: const ['a', 'b', 'c', 'd'],
+          userAgentPackageName: 'com.example.safespace', // Best practice
+        ),
+        MarkerLayer(
+          markers: resources.map((resource) {
+            return Marker(
+              point: LatLng(resource.latitude, resource.longitude),
+              width: 50,
+              height: 50,
+              alignment: Alignment.topCenter,
+              child: GestureDetector(
+                onTap: () {
+                  mapController.move(
+                    LatLng(resource.latitude, resource.longitude),
+                    15,
+                  );
+                  final index = resources.indexOf(resource);
+                  if (index != -1) {
+                    pageController.animateToPage(
+                      index,
+                      duration: DesignTokens.durationMedium,
+                      curve: DesignTokens.animationCurve,
+                    );
+                  }
+                },
+                child: _buildGlassMarker(resource),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -405,6 +496,70 @@ class _SearchScreenState extends State<SearchScreen> {
       default:
         return Icons.place;
     }
+  }
+}
+
+class _ResourcesOverlay extends StatelessWidget {
+  final ResourceCategory? selectedCategory;
+  final Function(ResourceCategory?) onCategorySelected;
+  final List<Resource> resources;
+  final PageController pageController;
+  final MapController mapController;
+  final BuildContext context;
+
+  const _ResourcesOverlay({
+    required this.selectedCategory,
+    required this.onCategorySelected,
+    required this.resources,
+    required this.pageController,
+    required this.mapController,
+    required this.context,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ResourceFilters(
+          selectedCategory: selectedCategory,
+          onCategorySelected: onCategorySelected,
+        ),
+
+        const Spacer(),
+
+        // Resource Carousel
+        if (resources.isNotEmpty)
+          SizedBox(
+            height: 260,
+            child: PageView.builder(
+              controller: pageController,
+              itemCount: resources.length,
+              onPageChanged: (index) {
+                final r = resources[index];
+                mapController.move(LatLng(r.latitude, r.longitude), 15);
+              },
+              itemBuilder: (context, index) {
+                return ResourceCarouselCard(
+                  resource: resources[index],
+                  onTap: () => _showResourceDetails(resources[index]),
+                );
+              },
+            ),
+          ),
+
+        // Spacer for Bottom Nav
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  void _showResourceDetails(Resource resource) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ResourceDetailSheet(resource: resource),
+    );
   }
 }
 

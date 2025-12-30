@@ -18,23 +18,42 @@ class GlassSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Check Theme
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       height: 50,
       onTap: onTap,
       child: Row(
         children: [
-          const Icon(CupertinoIcons.search, color: DesignTokens.textSecondary),
+          Icon(
+            CupertinoIcons.search,
+            color: isDark
+                ? DesignTokens.textSecondaryDark
+                : DesignTokens.textSecondary,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: IgnorePointer(
               ignoring: readOnly,
               child: TextField(
                 onChanged: onChanged,
-                decoration: const InputDecoration(
+                // 2. Set Input Text Color
+                style: TextStyle(
+                  color: isDark
+                      ? DesignTokens.textPrimaryDark
+                      : DesignTokens.textPrimary,
+                ),
+                decoration: InputDecoration(
                   hintText: "Search topics, resources...",
                   border: InputBorder.none,
-                  hintStyle: TextStyle(color: DesignTokens.textSecondary),
+                  // 3. Set Hint Text Color
+                  hintStyle: TextStyle(
+                    color: isDark
+                        ? DesignTokens.textSecondaryDark
+                        : DesignTokens.textSecondary,
+                  ),
                 ),
               ),
             ),
