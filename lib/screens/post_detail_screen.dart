@@ -1,9 +1,13 @@
 // lib/screens/post_detail_screen.dart
+import 'dart:async'; // Import for Timer
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Import Provider
 import '../models/post.dart';
 import '../models/comment.dart';
 import '../data/feed_repository.dart';
+import '../state/app_state_notifier.dart'; // Import App State
+import '../utils/merge_utils.dart'; // Import MergeUtils
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/avatar.dart';
@@ -25,23 +29,72 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final FeedRepository _repository = FeedRepository();
   final TextEditingController _commentController = TextEditingController();
-  late Future<List<Comment>> _commentsFuture;
-  List<Comment> _comments = [];
 
+  // Local state for comments
+  List<Comment> _comments = [];
+  Timer? _commentTimer;
+  bool _isFetchingComments = false;
+
+  // Used for carousel in main view
   int _currentImageIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchComments();
+    // Initial fetch
+    _fetchComments(force: true);
+    // Start Polling for new comments every 3s
+    _startCommentPolling();
   }
 
-  void _fetchComments() {
-    _commentsFuture = _repository.getComments(widget.post.id).then((val) {
-      if (mounted) setState(() => _comments = val);
-      return val;
+  @override
+  void dispose() {
+    _commentTimer?.cancel(); // Stop polling when screen closes
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  // --- POLLING LOGIC START ---
+  void _startCommentPolling() {
+    _commentTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _fetchComments();
     });
   }
+
+  Future<void> _fetchComments({bool force = false}) async {
+    if (_isFetchingComments && !force) return;
+    if (!mounted) return;
+
+    _isFetchingComments = true;
+
+    try {
+      final incomingComments = await _repository.getComments(widget.post.id);
+
+      // If we have no comments and fetched none, stop here
+      if (incomingComments.isEmpty && _comments.isEmpty) {
+        if (mounted) setState(() {});
+        return;
+      }
+
+      // SMART MERGE: This prevents the list from jumping/flashing
+      final mergedComments = MergeUtils.mergeLists<Comment>(
+        current: _comments,
+        incoming: incomingComments,
+        prependNew: true, // New comments appear at the top
+      );
+
+      if (mounted) {
+        setState(() {
+          _comments = mergedComments;
+        });
+      }
+    } catch (e) {
+      print("Comment fetch failed: $e");
+    } finally {
+      _isFetchingComments = false;
+    }
+  }
+  // --- POLLING LOGIC END ---
 
   void _handleSubmitComment() async {
     final text = _commentController.text.trim();
@@ -55,6 +108,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       setState(() {
         _comments.insert(0, newComment);
       });
+      // Force immediate refresh to sync
+      _fetchComments(force: true);
     }
   }
 
@@ -65,18 +120,29 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  void _openMediaViewer(int index) {
+  void _openMediaViewer(Post livePost, int index) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
-            PostMediaViewer(post: widget.post, initialIndex: index),
+            PostMediaViewer(post: livePost, initialIndex: index),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // 1. WATCH GLOBAL STATE FOR LIKES
+    // This connects to the root Timer. When the Feed refreshes,
+    // the like count here will update automatically.
+    final livePost = context.select<AppStateNotifier, Post>((notifier) {
+      try {
+        return notifier.feed.firstWhere((p) => p.id == widget.post.id);
+      } catch (e) {
+        return widget.post; // Fallback if post not in global feed
+      }
+    });
+
     return GlassScaffold(
       showBottomNav: false,
       body: Stack(
@@ -93,13 +159,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Author
+                            // Author Header
                             GestureDetector(
                               onTap: () =>
-                                  _navigateToProfile(widget.post.author.id),
+                                  _navigateToProfile(livePost.author.id),
                               child: Row(
                                 children: [
-                                  Avatar(user: widget.post.author, radius: 24),
+                                  Avatar(user: livePost.author, radius: 24),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
@@ -107,13 +173,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          widget.post.author.displayName,
+                                          livePost.author.displayName,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16,
                                           ),
                                         ),
-                                        Text("@${widget.post.author.username}"),
+                                        Text("@${livePost.author.username}"),
                                       ],
                                     ),
                                   ),
@@ -121,21 +187,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
+
+                            // Post Content Text
                             Text(
-                              widget.post.content,
+                              livePost.content,
                               style: const TextStyle(fontSize: 18, height: 1.5),
                             ),
 
                             // --- MEDIA CAROUSEL ---
-                            if (widget.post.mediaIds.isNotEmpty) ...[
+                            if (livePost.mediaIds.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: SizedBox(
-                                  height: 400, // Big view
+                                  height: 400,
                                   width: double.infinity,
                                   child: PageView.builder(
-                                    itemCount: widget.post.mediaIds.length,
+                                    itemCount: livePost.mediaIds.length,
                                     onPageChanged: (index) {
                                       setState(
                                         () => _currentImageIndex = index,
@@ -143,13 +211,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                     },
                                     itemBuilder: (context, index) {
                                       return GestureDetector(
-                                        onTap: () => _openMediaViewer(index),
+                                        onTap: () =>
+                                            _openMediaViewer(livePost, index),
                                         child: Hero(
                                           tag:
-                                              'post_media_${widget.post.id}_$index',
+                                              'post_media_${livePost.id}_$index',
                                           child: CachedBase64Image(
-                                            mediaId:
-                                                widget.post.mediaIds[index],
+                                            mediaId: livePost.mediaIds[index],
                                             fit: BoxFit.contain,
                                             height: 400,
                                             width: double.infinity,
@@ -160,14 +228,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   ),
                                 ),
                               ),
-                              // Dots
-                              if (widget.post.mediaIds.length > 1)
+                              // Dots Indicator
+                              if (livePost.mediaIds.length > 1)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 12.0),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: List.generate(
-                                      widget.post.mediaIds.length,
+                                      livePost.mediaIds.length,
                                       (index) => Container(
                                         margin: const EdgeInsets.symmetric(
                                           horizontal: 3,
@@ -184,17 +252,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                     ),
                                   ),
                                 ),
-                            ] else if (widget.post.imageUrl != null &&
-                                widget.post.imageUrl!.isNotEmpty) ...[
+                            ] else if (livePost.imageUrl != null &&
+                                livePost.imageUrl!.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               GestureDetector(
-                                onTap: () => _openMediaViewer(0),
+                                onTap: () => _openMediaViewer(livePost, 0),
                                 child: Hero(
-                                  tag: 'post_img_${widget.post.id}',
+                                  tag: 'post_img_${livePost.id}',
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(16),
                                     child: Image.network(
-                                      widget.post.imageUrl!,
+                                      livePost.imageUrl!,
                                       height: 400,
                                       width: double.infinity,
                                       fit: BoxFit.cover,
@@ -206,35 +274,50 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                             const SizedBox(height: 16),
                             const Divider(),
-                            Text(
-                              "Comments (${_comments.length})",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                            // Stats Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "${livePost.likes} Likes",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: DesignTokens.textSecondary,
+                                  ),
+                                ),
+                                // Use local list length for accurate count
+                                Text(
+                                  "Comments (${_comments.length})",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
 
                       const SizedBox(height: 16),
-                      // Comments
-                      FutureBuilder(
-                        future: _commentsFuture,
-                        builder: (context, snapshot) {
-                          if (_comments.isEmpty &&
-                              snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          return Column(
-                            children: _comments
-                                .map((c) => _buildCommentItem(c))
-                                .toList(),
-                          );
-                        },
-                      ),
+                      // Comments List
+                      if (_comments.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Center(
+                            child: Text(
+                              "No comments yet.",
+                              style: TextStyle(
+                                color: DesignTokens.textSecondary,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Column(
+                          children: _comments
+                              .map((c) => _buildCommentItem(c))
+                              .toList(),
+                        ),
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -305,7 +388,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Widget _buildCommentItem(Comment comment) {
+    // Key is CRITICAL for preventing list jumps when data updates
     return Padding(
+      key: ValueKey(comment.id),
       padding: const EdgeInsets.only(bottom: 8.0),
       child: GlassCard(
         padding: const EdgeInsets.all(12),
@@ -358,8 +443,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 }
 
-// --- New Post Media Viewer Class ---
-
+// --- Post Media Viewer Class ---
 class PostMediaViewer extends StatefulWidget {
   final Post post;
   final int initialIndex;
@@ -378,7 +462,6 @@ class _PostMediaViewerState extends State<PostMediaViewer> {
   late PageController _pageController;
   late int _currentIndex;
 
-  // Helper to determine total items based on post data structure
   int get _itemCount {
     if (widget.post.mediaIds.isNotEmpty) {
       return widget.post.mediaIds.length;
@@ -433,7 +516,6 @@ class _PostMediaViewerState extends State<PostMediaViewer> {
       ),
       body: Stack(
         children: [
-          // Image Slider
           PageView.builder(
             controller: _pageController,
             itemCount: _itemCount,
@@ -444,8 +526,6 @@ class _PostMediaViewerState extends State<PostMediaViewer> {
             },
             itemBuilder: (context, index) {
               Widget content;
-
-              // Handle "mediaIds" list logic
               if (widget.post.mediaIds.isNotEmpty) {
                 content = Hero(
                   tag: 'post_media_${widget.post.id}_$index',
@@ -456,9 +536,7 @@ class _PostMediaViewerState extends State<PostMediaViewer> {
                     height: MediaQuery.of(context).size.height,
                   ),
                 );
-              }
-              // Handle single "imageUrl" logic
-              else {
+              } else {
                 content = Hero(
                   tag: 'post_img_${widget.post.id}',
                   child: Image.network(
@@ -469,7 +547,6 @@ class _PostMediaViewerState extends State<PostMediaViewer> {
                   ),
                 );
               }
-
               return Center(
                 child: InteractiveViewer(
                   minScale: 1.0,
@@ -479,8 +556,6 @@ class _PostMediaViewerState extends State<PostMediaViewer> {
               );
             },
           ),
-
-          // Caption Overlay (Post Content)
           if (widget.post.content.isNotEmpty)
             Positioned(
               bottom: 0,

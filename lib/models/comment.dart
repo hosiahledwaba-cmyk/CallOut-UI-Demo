@@ -1,7 +1,10 @@
 // lib/models/comment.dart
+import '../utils/merge_utils.dart'; // Import for Identifiable
 import 'user.dart';
 
-class Comment {
+// Added 'implements Identifiable' so MergeUtils works
+class Comment implements Identifiable {
+  @override
   final String id;
   final User author;
   final String text;
