@@ -1,12 +1,15 @@
 // lib/models/post.dart
 import 'user.dart';
+import '../utils/merge_utils.dart'; // Import the utility
 
-class Post {
+// Added 'implements Identifiable'
+class Post implements Identifiable {
+  @override
   final String id;
   final User author;
   final String content;
-  final String? imageUrl; // Legacy/External URL support
-  final List<String> mediaIds; // MEDIA STRATEGY: List of internal media IDs
+  final String? imageUrl;
+  final List<String> mediaIds;
   final DateTime timestamp;
   final int likes;
   final int comments;
@@ -18,7 +21,7 @@ class Post {
     required this.author,
     required this.content,
     this.imageUrl,
-    this.mediaIds = const [], // Default empty
+    this.mediaIds = const [],
     required this.timestamp,
     this.likes = 0,
     this.comments = 0,
@@ -53,9 +56,8 @@ class Post {
   }
 
   factory Post.fromJson(Map<String, dynamic> json) {
-    // DEBUG: Check if media_ids are arriving
     if (json['media_ids'] != null && (json['media_ids'] as List).isNotEmpty) {
-      print("📦 Post ${json['id']} has media: ${json['media_ids']}");
+      // print("📦 Post ${json['id']} has media: ${json['media_ids']}");
     }
 
     return Post(
@@ -63,7 +65,6 @@ class Post {
       author: User.fromJson(json['author'] ?? {}),
       content: json['content'] ?? '',
       imageUrl: json['image_url'],
-      // Ensure this mapping matches the backend key
       mediaIds: List<String>.from(json['media_ids'] ?? []),
       timestamp: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()

@@ -31,6 +31,20 @@ class _PostPreviewState extends State<PostPreview> {
     _post = widget.post;
   }
 
+  // --- CRITICAL FIX START ---
+  @override
+  void didUpdateWidget(PostPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the parent (FeedScreen) passes a new Post object (from background poll),
+    // we must update our local state to reflect those changes (e.g. new like count).
+    if (widget.post != oldWidget.post) {
+      setState(() {
+        _post = widget.post;
+      });
+    }
+  }
+  // --- CRITICAL FIX END ---
+
   void _handleLike() {
     final wasLiked = _post.isLiked;
     setState(() {
@@ -150,7 +164,7 @@ class _PostPreviewState extends State<PostPreview> {
                   DesignTokens.borderRadiusSmall,
                 ),
                 child: SizedBox(
-                  height: 300, // Fixed height for consistency
+                  height: 300,
                   width: double.infinity,
                   child: PageView.builder(
                     itemCount: _post.mediaIds.length,
@@ -161,7 +175,7 @@ class _PostPreviewState extends State<PostPreview> {
                         mediaId: _post.mediaIds[index],
                         height: 300,
                         width: double.infinity,
-                        fit: BoxFit.contain, // Triggers "Smart Blur"
+                        fit: BoxFit.contain,
                       );
                     },
                   ),
@@ -201,8 +215,7 @@ class _PostPreviewState extends State<PostPreview> {
                   _post.imageUrl!,
                   height: 300,
                   width: double.infinity,
-                  fit: BoxFit
-                      .cover, // Legacy can stay cover or switch to contain
+                  fit: BoxFit.cover,
                   errorBuilder: (c, e, s) => const SizedBox(),
                 ),
               ),

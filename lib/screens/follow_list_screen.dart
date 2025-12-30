@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../data/profile_repository.dart';
-import '../services/auth_service.dart'; // Import AuthService
+import '../services/auth_service.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/avatar.dart';
@@ -26,12 +26,12 @@ class _FollowListScreenState extends State<FollowListScreen> {
   final ProfileRepository _repo = ProfileRepository();
   List<User> _users = [];
   bool _isLoading = true;
-  String? _currentUserId; // Store current user ID
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    _currentUserId = AuthService().currentUser?.id; // Get ID on init
+    _currentUserId = AuthService().currentUser?.id;
     _fetchData();
   }
 
@@ -39,10 +39,15 @@ class _FollowListScreenState extends State<FollowListScreen> {
     setState(() => _isLoading = true);
 
     List<User> results;
-    if (widget.type == FollowListType.followers) {
-      results = await _repo.getFollowers(widget.userId);
-    } else {
-      results = await _repo.getFollowing(widget.userId);
+    try {
+      if (widget.type == FollowListType.followers) {
+        results = await _repo.getFollowers(widget.userId);
+      } else {
+        results = await _repo.getFollowing(widget.userId);
+      }
+    } catch (e) {
+      print("Error fetching lists: $e");
+      results = [];
     }
 
     if (mounted) {
@@ -54,17 +59,28 @@ class _FollowListScreenState extends State<FollowListScreen> {
   }
 
   void _handleToggleFollow(User user) async {
-    // Optimistic Update
+    // 1. Find user index
     final index = _users.indexWhere((u) => u.id == user.id);
     if (index == -1) return;
 
     final newState = !user.isFollowing;
 
+    // 2. Optimistic Update
     setState(() {
       _users[index] = user.copyWith(isFollowing: newState);
     });
 
-    await _repo.toggleFollow(user.id, newState);
+    // 3. API Call
+    final success = await _repo.toggleFollow(user.id, newState);
+
+    // 4. Rollback if failed
+    if (!success) {
+      if (mounted) {
+        setState(() {
+          _users[index] = user.copyWith(isFollowing: !newState);
+        });
+      }
+    }
   }
 
   @override
@@ -107,7 +123,6 @@ class _FollowListScreenState extends State<FollowListScreen> {
   }
 
   Widget _buildUserItem(User user) {
-    // Check if this user is me
     final isMe = user.id == _currentUserId;
 
     return Padding(
@@ -141,25 +156,27 @@ class _FollowListScreenState extends State<FollowListScreen> {
                       user.displayName,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: DesignTokens.textPrimary,
+                        color: DesignTokens.textPrimary, // Kept per your code
                       ),
                     ),
                     Text(
                       "@${user.username}",
                       style: const TextStyle(
                         fontSize: 12,
-                        color: DesignTokens.textSecondary,
+                        color: DesignTokens.textSecondary, // Kept per your code
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            // Only show the button if it's NOT me
             if (!isMe)
               GestureDetector(
                 onTap: () => _handleToggleFollow(user),
+                // Ensure tapping anywhere on the button works
+                behavior: HitTestBehavior.opaque,
                 child: Opacity(
+                  // Use opacity to distinguish "Following" state visually
                   opacity: user.isFollowing ? 0.6 : 1.0,
                   child: Container(
                     height: 32,

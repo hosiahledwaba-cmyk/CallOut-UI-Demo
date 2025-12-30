@@ -59,14 +59,20 @@ class ProfileRepository {
     }
   }
 
-  Future<bool> toggleFollow(String userId, bool isFollowing) async {
+  Future<bool> toggleFollow(String userId, bool shouldFollow) async {
     try {
       final url = ApiConfig.userFollow.replaceAll('{id}', userId);
-      final response = isFollowing
-          ? await http.delete(Uri.parse(url), headers: ApiConfig.headers)
-          : await http.post(Uri.parse(url), headers: ApiConfig.headers);
+
+      // LOGIC FIX:
+      // If shouldFollow is true -> POST (Create relationship)
+      // If shouldFollow is false -> DELETE (Remove relationship)
+      final response = shouldFollow
+          ? await http.post(Uri.parse(url), headers: ApiConfig.headers)
+          : await http.delete(Uri.parse(url), headers: ApiConfig.headers);
+
       return response.statusCode == 200;
     } catch (e) {
+      print("❌ Toggle Follow Error: $e");
       return false;
     }
   }
