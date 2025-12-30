@@ -49,7 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _startPolling() {
     _timer = Timer.periodic(
-      const Duration(seconds: 3),
+      const Duration(seconds: 15),
       (_) => _fetchMessages(),
     );
   }

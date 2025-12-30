@@ -66,5 +66,5 @@ class ApiConfig {
     return baseHeaders;
   }
 
-  static const Duration timeout = Duration(seconds: 19);
+  static const Duration timeout = Duration(seconds: 60);
 }

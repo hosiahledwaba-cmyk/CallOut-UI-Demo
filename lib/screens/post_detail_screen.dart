@@ -56,7 +56,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   // --- POLLING LOGIC START ---
   void _startCommentPolling() {
-    _commentTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _commentTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       _fetchComments();
     });
   }

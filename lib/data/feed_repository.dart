@@ -21,10 +21,16 @@ class FeedRepository {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => Post.fromJson(e)).toList();
       }
+
+      // If server returns error, print it!
+      print("❌ Server Error ${response.statusCode}: ${response.body}");
       throw Exception('Failed to load feed');
     } catch (e) {
-      // Mock Data Fallback (for testing offline)
-      return _getMockPosts();
+      // STOP RETURNING MOCK DATA
+      // return _getMockPosts();
+
+      print("❌ Feed Fetch Error: $e");
+      return []; // Return empty so we don't confuse the UI
     }
   }
 
@@ -182,6 +188,21 @@ class FeedRepository {
     final String shareText = "Check out this post on SafeSpace:\n$deepLink";
 
     await Share.share(shareText);
+  }
+
+  Future<Post?> getPostById(String id) async {
+    try {
+      final response = await http
+          .get(Uri.parse("${ApiConfig.posts}/$id"), headers: ApiConfig.headers)
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode == 200) {
+        return Post.fromJson(jsonDecode(response.body));
+      }
+    } catch (e) {
+      print("Fetch Post By ID Error: $e");
+    }
+    return null;
   }
 
   // --- MOCKS ---

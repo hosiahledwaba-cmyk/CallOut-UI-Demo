@@ -1,9 +1,7 @@
 // lib/models/post.dart
 import 'user.dart';
-import '../utils/merge_utils.dart';
 
-class Post implements Identifiable {
-  @override
+class Post {
   final String id;
   final User author;
   final String content;
@@ -36,7 +34,6 @@ class Post implements Identifiable {
     this.isRepost = false,
   });
 
-  // ... copyWith (kept same as before) ...
   Post copyWith({
     String? id,
     User? author,
@@ -76,15 +73,17 @@ class Post implements Identifiable {
       content: json['content'] ?? '',
       imageUrl: json['image_url'],
       mediaIds: List<String>.from(json['media_ids'] ?? []),
-      timestamp: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+
+      // Robust Date Parsing (Falls back to 1970 to sort to bottom if invalid)
+      timestamp: _parseDate(json['created_at']),
+
       likes: json['likes_count'] ?? 0,
       comments: json['comments_count'] ?? 0,
       shares: json['shares_count'] ?? 0,
       isLiked: json['is_liked'] ?? false,
       isEmergency: json['is_emergency'] ?? false,
       isRepost: json['is_repost'] ?? false,
+
       // Recursive parsing for the inner post
       repostedPost: json['reposted_post'] != null
           ? Post.fromJson(json['reposted_post'])
@@ -92,7 +91,16 @@ class Post implements Identifiable {
     );
   }
 
-  // NEW: Serialization for API usage
+  static DateTime _parseDate(dynamic dateString) {
+    if (dateString == null) return DateTime.fromMillisecondsSinceEpoch(0);
+    final DateTime? parsed = DateTime.tryParse(dateString.toString());
+    if (parsed != null) return parsed;
+    if (dateString is int) {
+      return DateTime.fromMillisecondsSinceEpoch(dateString);
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

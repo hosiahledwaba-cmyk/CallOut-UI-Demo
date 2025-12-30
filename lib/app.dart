@@ -6,6 +6,11 @@ import 'screens/feed_screen.dart';
 import 'services/auth_service.dart';
 import 'app_settings.dart';
 
+// GLOBAL NAVIGATOR KEY
+// This is accessed by main.dart (to init DeepLinkService)
+// and assigned to MaterialApp below.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class SafeSpaceApp extends StatefulWidget {
   const SafeSpaceApp({super.key});
 
@@ -32,11 +37,18 @@ class _SafeSpaceAppState extends State<SafeSpaceApp> {
         listenable: _settings,
         builder: (_, __) {
           return MaterialApp(
+            // 1. ASSIGN GLOBAL KEY (Crucial for Deep Linking)
+            navigatorKey: navigatorKey,
+
             title: 'SafeSpace',
             debugShowCheckedModeBanner: false,
+
+            // 2. THEME CONFIGURATION
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _settings.effectiveThemeMode,
+
+            // 3. AUTH ROUTING
             home: isLoggedIn ? const FeedScreen() : const LoginScreen(),
           );
         },

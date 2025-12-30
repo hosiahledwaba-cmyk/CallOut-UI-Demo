@@ -1,16 +1,14 @@
 // lib/screens/feed_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Import Provider
+import 'package:provider/provider.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
 import '../widgets/post_preview.dart';
 import '../widgets/glass_card.dart';
-// ignore: unused_import
-import '../models/post.dart';
 import '../theme/design_tokens.dart';
 import 'create_post_screen.dart';
 import '../services/auth_service.dart';
-import '../state/app_state_notifier.dart'; // Import State
+import '../state/app_state_notifier.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -20,8 +18,6 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
-  // Removed local _postsFuture and _repository
-
   void _navigateToCreatePost() async {
     final result = await Navigator.push(
       context,
@@ -29,7 +25,6 @@ class _FeedScreenState extends State<FeedScreen> {
     );
 
     if (result == true) {
-      // Force refresh via provider
       context.read<AppStateNotifier>().refresh(force: true);
     }
   }
@@ -41,7 +36,8 @@ class _FeedScreenState extends State<FeedScreen> {
     final posts = appState.feed;
 
     final currentUser = AuthService().currentUser;
-    final bool canPost = currentUser?.isActivist ?? false;
+    // Activists can post, or anyone if you change policy
+    final bool canPost = currentUser?.isActivist ?? true;
 
     return GlassScaffold(
       currentTabIndex: 0,
@@ -62,7 +58,6 @@ class _FeedScreenState extends State<FeedScreen> {
               IconButton(
                 icon: const Icon(Icons.refresh, size: 22),
                 color: DesignTokens.textPrimary,
-                // Manual refresh
                 onPressed: () =>
                     context.read<AppStateNotifier>().refresh(force: true),
                 tooltip: "Refresh Feed",
@@ -81,18 +76,18 @@ class _FeedScreenState extends State<FeedScreen> {
                         context.read<AppStateNotifier>().refresh(force: true),
                     color: DesignTokens.accentPrimary,
                     child: ListView.builder(
-                      // KEY: Preserves scroll position
                       key: const PageStorageKey('global_feed_list'),
                       padding: const EdgeInsets.all(DesignTokens.paddingMedium),
+                      // Add +1 for the Emergency Header
                       itemCount: posts.length + 1,
                       itemBuilder: (context, index) {
                         if (index == 0) {
-                          // Header
-                          return Padding(
-                            padding: const EdgeInsets.only(
+                          // Emergency Header
+                          return const Padding(
+                            padding: EdgeInsets.only(
                               bottom: DesignTokens.paddingMedium,
                             ),
-                            child: const GlassCard(
+                            child: GlassCard(
                               isAlert: true,
                               child: Row(
                                 children: [
@@ -121,12 +116,8 @@ class _FeedScreenState extends State<FeedScreen> {
                           );
                         }
 
-                        // Post Item
                         final post = posts[index - 1];
-                        return PostPreview(
-                          key: ValueKey(post.id), // KEY: Matches data updates
-                          post: post,
-                        );
+                        return PostPreview(key: ValueKey(post.id), post: post);
                       },
                     ),
                   ),

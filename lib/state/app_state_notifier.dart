@@ -3,13 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/feed_repository.dart';
 import '../models/post.dart';
-import '../utils/merge_utils.dart';
 
 class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
   final FeedRepository _feedRepo = FeedRepository();
   Timer? _timer;
 
-  // GLOBAL STATE
   List<Post> _feed = [];
   List<Post> get feed => _feed;
 
@@ -43,7 +41,7 @@ class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
 
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+    _timer = Timer.periodic(const Duration(seconds: 60), (_) => refresh());
   }
 
   void _stopTimer() {
@@ -59,19 +57,30 @@ class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final incomingPosts = await _feedRepo.getPosts();
 
-      if (incomingPosts.isEmpty) return;
+      // --- FIXED MERGE LOGIC START ---
 
-      final mergedPosts = MergeUtils.mergeLists<Post>(
-        current: _feed,
-        incoming: incomingPosts,
-        prependNew: true,
-      );
+      // 1. Create a Map from the CURRENT feed (to keep existing data)
+      final Map<String, Post> postMap = {for (var post in _feed) post.id: post};
 
-      if (mergedPosts.length != _feed.length ||
-          _hasContentChanged(mergedPosts)) {
-        _feed = mergedPosts;
+      // 2. Update/Overwrite with NEW data from server
+      for (var post in incomingPosts) {
+        postMap[post.id] = post;
+      }
+
+      // 3. Convert back to a list
+      final allPosts = postMap.values.toList();
+
+      // 4. FORCE SORT: Newest (Future) -> Oldest (Past)
+      // This ensures that even if data arrives out of order, it displays correctly.
+      allPosts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      // 5. Update State
+      if (allPosts.length != _feed.length || _hasContentChanged(allPosts)) {
+        _feed = allPosts;
         notifyListeners();
       }
+
+      // --- FIXED MERGE LOGIC END ---
     } catch (e) {
       print("⚠️ Background refresh failed: $e");
     } finally {
@@ -81,18 +90,15 @@ class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _hasContentChanged(List<Post> newFeed) {
     if (_feed.isEmpty) return true;
+    if (newFeed.isEmpty) return false;
     return newFeed.first.id != _feed.first.id;
   }
 
-  // --- NEW: REPOST ACTION ---
   Future<bool> repostPost(String originalPostId) async {
     try {
-      // 1. Call API
       final newRepost = await _feedRepo.repostPost(originalPostId);
-
       if (newRepost != null) {
-        // 2. Optimistic Update: Insert the new repost at the TOP of the feed
-        // This makes it feel instant to the user.
+        // Insert at top locally
         _feed.insert(0, newRepost);
         notifyListeners();
         return true;

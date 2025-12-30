@@ -5,7 +5,7 @@ import '../models/post.dart';
 import 'glass_card.dart';
 import 'avatar.dart';
 import 'cached_base64_image.dart';
-import 'share_bottom_sheet.dart'; // Import the new Share Sheet
+import 'share_bottom_sheet.dart';
 import '../theme/design_tokens.dart';
 import '../screens/post_detail_screen.dart';
 import '../screens/profile_screen.dart';
@@ -22,8 +22,8 @@ class PostPreview extends StatefulWidget {
 }
 
 class _PostPreviewState extends State<PostPreview> {
-  late Post _post; // The wrapper post (may be a repost)
-  late Post _displayPost; // The actual content to show
+  late Post _post; // The wrapper (Reposter)
+  late Post _displayPost; // The content (Original Author)
 
   final FeedRepository _repo = FeedRepository();
   int _currentImageIndex = 0;
@@ -34,42 +34,36 @@ class _PostPreviewState extends State<PostPreview> {
     _initializePostData();
   }
 
-  // Helper to set up the post vs display post logic
   void _initializePostData() {
     _post = widget.post;
-    // If this is a repost and has inner content, display the inner content.
-    // Otherwise, display the post itself.
+    // If repost, show inner content. Else show post itself.
     _displayPost = (_post.isRepost && _post.repostedPost != null)
         ? _post.repostedPost!
         : _post;
   }
 
-  // --- CRITICAL FIX START ---
+  // --- CRITICAL FIX: SYNC STATE FROM PARENT ---
   @override
   void didUpdateWidget(PostPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the parent (FeedScreen) passes a new Post object (from background poll),
-    // update local state immediately.
     if (widget.post != oldWidget.post) {
       setState(() {
         _initializePostData();
       });
     }
   }
-  // --- CRITICAL FIX END ---
 
   void _handleLike() {
-    // We like the CONTENT post (the one being displayed)
+    // Like the CONTENT, not the wrapper
     final wasLiked = _displayPost.isLiked;
 
     setState(() {
-      // Optimistically update the display post
       _displayPost = _displayPost.copyWith(
         isLiked: !wasLiked,
         likes: _displayPost.likes + (wasLiked ? -1 : 1),
       );
 
-      // If it wasn't a repost, we also update the wrapper for consistency
+      // If not a repost, sync wrapper for consistency
       if (!_post.isRepost) {
         _post = _displayPost;
       }
@@ -79,7 +73,6 @@ class _PostPreviewState extends State<PostPreview> {
   }
 
   void _handleShare() {
-    // Open the new robust Share Sheet
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -89,7 +82,7 @@ class _PostPreviewState extends State<PostPreview> {
   }
 
   void _navigateToProfile() {
-    // Navigate to the author of the CONTENT (not the reposter)
+    // Navigates to the author of the CONTENT
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -108,13 +101,8 @@ class _PostPreviewState extends State<PostPreview> {
 
     if (updatedPost != null && updatedPost is Post && mounted) {
       setState(() {
-        // If we returned from detail with an updated object, sync it back
         if (_post.isRepost) {
-          // If it was a repost, we only update the inner content
-          // (Creating a new wrapper would require a more complex copyWith,
-          // usually simpler just to rely on the background poller)
-          // But for immediate feedback, we can update _displayPost locally.
-          _displayPost = updatedPost;
+          _displayPost = updatedPost; // Update inner content
         } else {
           _post = updatedPost;
           _displayPost = updatedPost;
@@ -130,7 +118,9 @@ class _PostPreviewState extends State<PostPreview> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. REPOST HEADER (Only if it is a repost)
+          // 1. REPOST HEADER
+          // Logic: Since the Feed only returns posts from people we follow,
+          // if isRepost is true, the user follows the reposter.
           if (_post.isRepost)
             Padding(
               padding: const EdgeInsets.only(left: 12, bottom: 4),
@@ -174,11 +164,14 @@ class _PostPreviewState extends State<PostPreview> {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  _displayPost.author.displayName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                Flexible(
+                                  child: Text(
+                                    _displayPost.author.displayName,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
                                 ),
                                 if (_displayPost.author.isVerified) ...[
@@ -222,7 +215,7 @@ class _PostPreviewState extends State<PostPreview> {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
 
-                // MEDIA RENDERING
+                // Media Carousel
                 if (_displayPost.mediaIds.isNotEmpty) ...[
                   const SizedBox(height: DesignTokens.paddingMedium),
                   ClipRRect(
@@ -247,7 +240,6 @@ class _PostPreviewState extends State<PostPreview> {
                       ),
                     ),
                   ),
-                  // Dots Indicator
                   if (_displayPost.mediaIds.length > 1)
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0),
@@ -273,7 +265,7 @@ class _PostPreviewState extends State<PostPreview> {
                     ),
                 ] else if (_displayPost.imageUrl != null &&
                     _displayPost.imageUrl!.isNotEmpty) ...[
-                  // Fallback for legacy
+                  // Fallback for legacy posts
                   const SizedBox(height: DesignTokens.paddingMedium),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(
@@ -284,7 +276,6 @@ class _PostPreviewState extends State<PostPreview> {
                       height: 300,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => const SizedBox(),
                     ),
                   ),
                 ],
@@ -312,7 +303,7 @@ class _PostPreviewState extends State<PostPreview> {
                     _InteractionButton(
                       icon: CupertinoIcons.share,
                       label: "Share",
-                      onTap: _handleShare, // Triggers the Share Sheet
+                      onTap: _handleShare,
                     ),
                   ],
                 ),
