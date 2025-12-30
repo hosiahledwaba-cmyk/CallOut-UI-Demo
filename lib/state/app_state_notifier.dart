@@ -1,7 +1,7 @@
 // lib/state/app_state_notifier.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../data/feed_repository.dart'; // Uses your existing repo
+import '../data/feed_repository.dart';
 import '../models/post.dart';
 import '../utils/merge_utils.dart';
 
@@ -19,7 +19,7 @@ class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
   AppStateNotifier() {
     WidgetsBinding.instance.addObserver(this);
     _startTimer();
-    refresh(force: true); // Initial fetch
+    refresh(force: true);
   }
 
   @override
@@ -57,28 +57,18 @@ class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
     _isRefreshing = true;
 
     try {
-      // Use your existing repository method
       final incomingPosts = await _feedRepo.getPosts();
 
       if (incomingPosts.isEmpty) return;
 
-      // Merge logic preserves scroll position
       final mergedPosts = MergeUtils.mergeLists<Post>(
         current: _feed,
         incoming: incomingPosts,
         prependNew: true,
       );
 
-      // Only notify if data changed (simple ID check for top item)
-      if (_feed.isEmpty ||
-          mergedPosts.first.id != _feed.first.id ||
-          mergedPosts.length != _feed.length) {
-        _feed = mergedPosts;
-        notifyListeners();
-      } else {
-        // Even if top ID didn't change, likes might have.
-        // For production safety, we update anyway if counts differ,
-        // or just update periodically. Here we update to be safe.
+      if (mergedPosts.length != _feed.length ||
+          _hasContentChanged(mergedPosts)) {
         _feed = mergedPosts;
         notifyListeners();
       }
@@ -86,6 +76,31 @@ class AppStateNotifier extends ChangeNotifier with WidgetsBindingObserver {
       print("⚠️ Background refresh failed: $e");
     } finally {
       _isRefreshing = false;
+    }
+  }
+
+  bool _hasContentChanged(List<Post> newFeed) {
+    if (_feed.isEmpty) return true;
+    return newFeed.first.id != _feed.first.id;
+  }
+
+  // --- NEW: REPOST ACTION ---
+  Future<bool> repostPost(String originalPostId) async {
+    try {
+      // 1. Call API
+      final newRepost = await _feedRepo.repostPost(originalPostId);
+
+      if (newRepost != null) {
+        // 2. Optimistic Update: Insert the new repost at the TOP of the feed
+        // This makes it feel instant to the user.
+        _feed.insert(0, newRepost);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("Repost logic failed: $e");
+      return false;
     }
   }
 }

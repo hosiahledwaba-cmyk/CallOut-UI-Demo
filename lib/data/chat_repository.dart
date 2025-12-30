@@ -5,10 +5,10 @@ import 'package:http/http.dart' as http;
 import '../models/message.dart';
 import '../models/user.dart';
 import 'api_config.dart';
-import '../services/media_service.dart'; // Using helper methods from here
+import '../services/media_service.dart';
 
 class ChatRepository {
-  // 1. Get list of active chats
+  // 1. Get active chats
   Future<List<User>> getActiveChats() async {
     try {
       final response = await http
@@ -38,42 +38,53 @@ class ChatRepository {
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => Message.fromJson(e)).toList();
       }
-      throw Exception('Failed to load messages');
+      return [];
     } catch (e) {
       return [];
     }
   }
 
-  // 3. Send Message (Supports Text + Image)
+  // 3. Send Message (Handles Text, Image, and Shared Posts)
   Future<Message?> sendMessage(
     String partnerId,
     String text, {
     File? imageFile,
+    String? sharedPostId, // New Parameter
   }) async {
     try {
       String? attachmentId;
+      String messageType = 'text';
 
-      // STEP 1: Upload Media if exists
+      // CASE A: Image Upload
       if (imageFile != null) {
         attachmentId = await _uploadChatMedia(imageFile);
-        // If upload fails, we abort sending the message to prevent confusion
         if (attachmentId == null) {
           print("Media upload failed, aborting message");
           return null;
         }
+        messageType = 'image';
+      }
+      // CASE B: Shared Post
+      else if (sharedPostId != null) {
+        // We pass the post ID in the request, backend will embed the post object
+        messageType = 'post';
       }
 
-      // STEP 2: Send Message with Link
       final url = ApiConfig.chatMessages.replaceAll('{id}', partnerId);
+
+      // Construct Request Body
+      final body = {
+        'text': text,
+        'type': messageType,
+        if (messageType == 'image') 'media_id': attachmentId,
+        if (messageType == 'post') 'shared_post_id': sharedPostId,
+      };
 
       final response = await http
           .post(
             Uri.parse(url),
             headers: ApiConfig.headers,
-            body: jsonEncode({
-              'text': text,
-              'media_id': attachmentId, // Send the ID we just got
-            }),
+            body: jsonEncode(body),
           )
           .timeout(ApiConfig.timeout);
 
@@ -87,33 +98,27 @@ class ChatRepository {
     return null;
   }
 
-  // Private helper to handle Chat-Specific Media Uploads
+  // Helper: Upload Media
   Future<String?> _uploadChatMedia(File file) async {
     try {
-      // 1. Compress (Reuse existing service logic)
       final processedFile = await MediaService().compressAndProcessImage(file);
       if (processedFile == null) return null;
 
-      // 2. Encode
       final base64Str = await MediaService().convertToBase64(processedFile);
 
-      // 3. Upload
-      // CRITICAL UPDATE:
-      // - Changed 'post_id' to 'owner_id' to match backend generic model.
-      // - Added "context": "chat" to route it to the chat_media collection.
       final response = await http.post(
         Uri.parse(ApiConfig.media),
         headers: ApiConfig.headers,
         body: jsonEncode({
-          "owner_id": "chat_upload", // Generic ID context
+          "owner_id": "chat_upload",
           "base64_data": base64Str,
-          "context": "chat", // Tells backend to put in chat_media
+          "context": "chat",
         }),
       );
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        return data['id']; // Return the Media ID
+        return data['id'];
       } else {
         print("Chat Media Upload Failed: ${response.body}");
       }

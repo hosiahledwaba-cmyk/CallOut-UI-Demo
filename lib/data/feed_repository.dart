@@ -2,11 +2,12 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:share_plus/share_plus.dart'; // For external sharing
 import '../models/post.dart';
 import '../models/user.dart';
 import '../models/comment.dart';
 import 'api_config.dart';
-import '../services/media_service.dart'; // Import Media Service
+import '../services/media_service.dart';
 
 class FeedRepository {
   // GET FEED
@@ -36,7 +37,6 @@ class FeedRepository {
   }) async {
     try {
       // Step 1: Create the Post metadata
-      // The backend creates the post document and returns its ID immediately.
       final response = await http
           .post(
             Uri.parse(ApiConfig.posts),
@@ -53,23 +53,16 @@ class FeedRepository {
         // Step 2: If we have images, upload them using the returned Post ID
         if (imageFiles.isNotEmpty) {
           final responseData = jsonDecode(response.body);
-
-          // Debug Print
-          print("📝 Post Created. Response: $responseData");
-
           final String? postId = responseData['id'];
 
           if (postId != null) {
             print("🚀 Uploading ${imageFiles.length} images for Post: $postId");
 
-            // Parallel Upload: Faster than looping one by one
+            // Parallel Upload
             final uploadTasks = imageFiles.map((file) {
-              // CRITICAL FIX: Explicitly set type to "post"
-              // This tells the backend to store it in 'post_media' and link it to the post
               return MediaService().uploadMedia(postId, file, type: "post");
             });
 
-            // Wait for all uploads to finish
             await Future.wait(uploadTasks);
             print("✅ All media uploaded successfully.");
           } else {
@@ -83,9 +76,7 @@ class FeedRepository {
       return false;
     } catch (e) {
       print("Create Post Error: $e");
-      // For Mock/Demo Mode: Simulate success after delay
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
+      return false;
     }
   }
 
@@ -104,7 +95,7 @@ class FeedRepository {
 
       return response.statusCode == 200;
     } catch (e) {
-      return true; // Optimistic success
+      return false;
     }
   }
 
@@ -124,6 +115,7 @@ class FeedRepository {
     }
   }
 
+  // Track internal share count (optional, distinct from external share)
   Future<bool> sharePost(String postId) async {
     final url = ApiConfig.postShare.replaceAll('{id}', postId);
     try {
@@ -132,7 +124,7 @@ class FeedRepository {
           .timeout(ApiConfig.timeout);
       return true;
     } catch (e) {
-      return true;
+      return false;
     }
   }
 
@@ -151,22 +143,48 @@ class FeedRepository {
         return Comment.fromJson(jsonDecode(response.body));
       }
     } catch (e) {
-      // Mock return for optimistic UI
-      return Comment(
-        id: 'c_${DateTime.now().millisecondsSinceEpoch}',
-        author: const User(
-          id: 'me',
-          username: 'me',
-          displayName: 'Me',
-          avatarUrl: '',
-        ),
-        text: text,
-        timestamp: DateTime.now(),
-      );
+      print("Add Comment Error: $e");
     }
     return null;
   }
 
+  // 1. REPOST FUNCTIONALITY
+  // Now calls the actual endpoint and returns the new Post object
+  Future<Post?> repostPost(String originalPostId) async {
+    try {
+      // Endpoint: /posts/{id}/repost
+      final url = "${ApiConfig.posts}/$originalPostId/repost";
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: ApiConfig.headers,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return Post.fromJson(jsonDecode(response.body));
+      }
+      return null;
+    } catch (e) {
+      print("❌ Repost Error: $e");
+      return null;
+    }
+  }
+
+  // 2. EXTERNAL SHARE
+  // Uses share_plus to trigger system share sheet
+  Future<void> sharePostExternally(Post post) async {
+    // If it's a repost, we usually share the original content
+    final idToShare = post.isRepost && post.repostedPost != null
+        ? post.repostedPost!.id
+        : post.id;
+
+    final String deepLink = "https://safespace.app/post/$idToShare";
+    final String shareText = "Check out this post on SafeSpace:\n$deepLink";
+
+    await Share.share(shareText);
+  }
+
+  // --- MOCKS ---
   List<Post> _getMockPosts() {
     final User user1 = const User(
       id: 'u1',

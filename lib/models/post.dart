@@ -1,8 +1,7 @@
 // lib/models/post.dart
 import 'user.dart';
-import '../utils/merge_utils.dart'; // Import the utility
+import '../utils/merge_utils.dart';
 
-// Added 'implements Identifiable'
 class Post implements Identifiable {
   @override
   final String id;
@@ -13,8 +12,13 @@ class Post implements Identifiable {
   final DateTime timestamp;
   final int likes;
   final int comments;
+  final int shares;
   final bool isLiked;
   final bool isEmergency;
+
+  // REPOST FIELDS
+  final Post? repostedPost;
+  final bool isRepost;
 
   const Post({
     required this.id,
@@ -25,10 +29,14 @@ class Post implements Identifiable {
     required this.timestamp,
     this.likes = 0,
     this.comments = 0,
+    this.shares = 0,
     this.isLiked = false,
     this.isEmergency = false,
+    this.repostedPost,
+    this.isRepost = false,
   });
 
+  // ... copyWith (kept same as before) ...
   Post copyWith({
     String? id,
     User? author,
@@ -38,8 +46,11 @@ class Post implements Identifiable {
     DateTime? timestamp,
     int? likes,
     int? comments,
+    int? shares,
     bool? isLiked,
     bool? isEmergency,
+    Post? repostedPost,
+    bool? isRepost,
   }) {
     return Post(
       id: id ?? this.id,
@@ -50,16 +61,15 @@ class Post implements Identifiable {
       timestamp: timestamp ?? this.timestamp,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
+      shares: shares ?? this.shares,
       isLiked: isLiked ?? this.isLiked,
       isEmergency: isEmergency ?? this.isEmergency,
+      repostedPost: repostedPost ?? this.repostedPost,
+      isRepost: isRepost ?? this.isRepost,
     );
   }
 
   factory Post.fromJson(Map<String, dynamic> json) {
-    if (json['media_ids'] != null && (json['media_ids'] as List).isNotEmpty) {
-      // print("📦 Post ${json['id']} has media: ${json['media_ids']}");
-    }
-
     return Post(
       id: json['id'] ?? '',
       author: User.fromJson(json['author'] ?? {}),
@@ -71,8 +81,27 @@ class Post implements Identifiable {
           : DateTime.now(),
       likes: json['likes_count'] ?? 0,
       comments: json['comments_count'] ?? 0,
+      shares: json['shares_count'] ?? 0,
       isLiked: json['is_liked'] ?? false,
       isEmergency: json['is_emergency'] ?? false,
+      isRepost: json['is_repost'] ?? false,
+      // Recursive parsing for the inner post
+      repostedPost: json['reposted_post'] != null
+          ? Post.fromJson(json['reposted_post'])
+          : null,
     );
+  }
+
+  // NEW: Serialization for API usage
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'content': content,
+      'image_url': imageUrl,
+      'media_ids': mediaIds,
+      'created_at': timestamp.toIso8601String(),
+      'is_repost': isRepost,
+      if (repostedPost != null) 'repost_of_id': repostedPost!.id,
+    };
   }
 }

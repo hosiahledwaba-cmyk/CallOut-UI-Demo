@@ -1,25 +1,48 @@
 // lib/utils/time_formatter.dart
-import 'package:intl/intl.dart'; // Add intl: ^0.18.1 to pubspec.yaml
+import 'package:intl/intl.dart'; // Add "intl: ^0.19.0" to pubspec.yaml if missing
 
 class TimeFormatter {
-  static String formatRelative(DateTime date) {
+  /// Returns "2h ago", "5m ago", "Just now", or "10 Oct"
+  static String formatRelative(DateTime timestamp) {
     final now = DateTime.now();
-    final difference = now.difference(date);
+    final difference = now.difference(timestamp);
 
-    if (difference.inSeconds < 60) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
+    if (difference.inDays > 7) {
+      return DateFormat('d MMM').format(timestamp);
+    } else if (difference.inDays >= 1) {
       return '${difference.inDays}d ago';
+    } else if (difference.inHours >= 1) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes >= 1) {
+      return '${difference.inMinutes}m ago';
     } else {
-      return DateFormat('MMM d').format(date);
+      return 'Just now';
     }
   }
 
-  static String formatChatTime(DateTime date) {
-    return DateFormat('HH:mm').format(date); // 14:30
+  /// Returns simple time: "14:30"
+  static String formatTime(DateTime timestamp) {
+    return DateFormat('HH:mm').format(timestamp);
+  }
+
+  /// Returns friendly chat time: "Today, 14:30" or "Yesterday, 09:00"
+  static String formatChatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dateToCheck = DateTime(
+      timestamp.year,
+      timestamp.month,
+      timestamp.day,
+    );
+
+    final timeStr = DateFormat('HH:mm').format(timestamp);
+
+    if (dateToCheck == today) {
+      return "Today, $timeStr";
+    } else if (dateToCheck == today.subtract(const Duration(days: 1))) {
+      return "Yesterday, $timeStr";
+    } else {
+      return DateFormat('d MMM, HH:mm').format(timestamp);
+    }
   }
 }
