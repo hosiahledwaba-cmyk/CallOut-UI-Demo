@@ -13,7 +13,7 @@ import '../data/profile_repository.dart';
 import '../theme/design_tokens.dart';
 import 'verification_screen.dart';
 import 'chat_screen.dart';
-import 'follow_list_screen.dart'; // IMPORTED NEW SCREEN
+import 'follow_list_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId; // Null = Me, String = Other User
@@ -41,7 +41,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _fetchProfileData() async {
     final currentUserId = AuthService().currentUser?.id;
-    // Determine target ID
     final targetId = widget.userId ?? currentUserId;
 
     if (targetId == null) {
@@ -52,7 +51,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _isMe = (targetId == currentUserId);
 
     try {
-      // Parallel Fetch: Profile + Posts
       final results = await Future.wait([
         _repo.getUserProfile(targetId),
         _repo.getUserPosts(targetId),
@@ -63,9 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final profileResult = results[0] as User?;
           final postsResult = results[1] as List<Post>;
 
-          // CRITICAL FIX: Handle null profile gracefully
           if (profileResult == null) {
-            print("⚠️ Profile data is null. Keeping loading state false.");
             _isLoading = false;
             return;
           }
@@ -77,10 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
-      print("Error loading profile: $e");
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -99,7 +92,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- NEW NAVIGATION LOGIC ---
   void _navigateToFollowList(FollowListType type) {
     if (_user == null) return;
     Navigator.push(
@@ -122,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    // 2. Error State (If user is still null after loading)
+    // 2. Error State
     if (_user == null) {
       return GlassScaffold(
         showBottomNav: widget.userId == null,
@@ -130,7 +122,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("User not found or connection failed."),
+              // Theme-aware text handled by GlassScaffold background,
+              // but we set explict color to be safe
+              const Text(
+                "User not found or connection failed.",
+                style: TextStyle(color: DesignTokens.textSecondary),
+              ),
               const SizedBox(height: 16),
               GlassButton(
                 label: "Retry",
@@ -145,7 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // 3. Content State
     return GlassScaffold(
-      // Show bottom nav ONLY if viewing "My Profile" tab (userId is null)
       currentTabIndex: widget.userId == null ? 3 : -1,
       showBottomNav: widget.userId == null,
       body: Column(
@@ -166,24 +162,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 20),
-
-                    // --- HEADER SECTION ---
                     _buildHeader(),
-
                     const SizedBox(height: 24),
-
-                    // --- STATS ROW ---
                     _buildStatsRow(),
-
                     const SizedBox(height: 24),
-
-                    // --- ACTION BUTTONS ---
                     if (_isMe) _buildMyDashboard() else _buildPublicActions(),
-
                     const SizedBox(height: 24),
                     const Divider(color: DesignTokens.glassBorder),
-
-                    // --- POSTS FEED ---
                     _buildPostsList(),
                   ],
                 ),
@@ -196,6 +181,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeader() {
+    // Theme Check
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     return Column(
       children: [
         Avatar(user: _user!, radius: 50),
@@ -205,10 +199,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text(
               _user!.displayName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: DesignTokens.textPrimary,
+                color: primaryColor, // Dynamic
               ),
             ),
             if (_user!.isVerified) ...[
@@ -231,16 +225,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         Text(
           "@${_user!.username}",
-          style: const TextStyle(
-            color: DesignTokens.textSecondary,
+          style: TextStyle(
+            color: secondaryColor, // Dynamic
             fontSize: 14,
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           "Community safety advocate. Believer in data-driven change. 🌍",
           textAlign: TextAlign.center,
-          style: TextStyle(color: DesignTokens.textPrimary, height: 1.4),
+          style: TextStyle(
+            color: primaryColor, // Dynamic
+            height: 1.4,
+          ),
         ),
       ],
     );
@@ -250,17 +247,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // Posts (Static for now)
         _buildStatItem("${_user!.postsCount}", "Posts"),
-
-        // Followers (Clickable)
         _buildStatItem(
           "${_user!.followersCount}",
           "Followers",
           onTap: () => _navigateToFollowList(FollowListType.followers),
         ),
-
-        // Following (Clickable)
         _buildStatItem(
           "${_user!.followingCount}",
           "Following",
@@ -271,20 +263,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatItem(String count, String label, {VoidCallback? onTap}) {
+    // Theme Check
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     return GestureDetector(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque, // Ensures larger click area
+      behavior: HitTestBehavior.opaque,
       child: Column(
         children: [
           Text(
             count,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: primaryColor, // Dynamic
+            ),
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: DesignTokens.textSecondary,
+              color: secondaryColor, // Dynamic
             ),
           ),
         ],
@@ -316,6 +321,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildMyDashboard() {
+    // Theme Check
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     return GlassCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -326,7 +340,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Icons.security,
                 color: _user!.isActivist
                     ? DesignTokens.accentPrimary
-                    : DesignTokens.textSecondary,
+                    : secondaryColor,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -337,15 +351,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _user!.isActivist
                           ? "Activist Account"
                           : "Standard Account",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor, // Dynamic
+                      ),
                     ),
                     Text(
                       _user!.isActivist
                           ? "You have full reporting access."
                           : "Verify to unlock features.",
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: DesignTokens.textSecondary,
+                        color: secondaryColor, // Dynamic
                       ),
                     ),
                   ],
@@ -371,6 +388,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildPostsList() {
     if (_posts.isEmpty) {
+      // Theme Check for Empty State
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final secondaryColor = isDark
+          ? DesignTokens.textSecondaryDark
+          : DesignTokens.textSecondary;
+
       return Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
@@ -378,13 +401,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               Icons.grid_off,
               size: 48,
-              color: DesignTokens.textSecondary.withOpacity(0.5),
+              color: secondaryColor.withOpacity(0.5),
             ),
             const SizedBox(height: 16),
-            const Text(
-              "No posts yet",
-              style: TextStyle(color: DesignTokens.textSecondary),
-            ),
+            Text("No posts yet", style: TextStyle(color: secondaryColor)),
           ],
         ),
       );

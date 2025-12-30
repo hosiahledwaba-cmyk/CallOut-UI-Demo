@@ -132,9 +132,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Theme Checks
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryTextColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+    final inputBgColor = isDark
+        ? DesignTokens.glassDark
+        : DesignTokens.glassWhite.withOpacity(0.65);
+    final inputBorderColor = isDark
+        ? DesignTokens.glassBorderDark
+        : DesignTokens.glassBorder;
+
     // 1. WATCH GLOBAL STATE FOR LIKES
-    // This connects to the root Timer. When the Feed refreshes,
-    // the like count here will update automatically.
     final livePost = context.select<AppStateNotifier, Post>((notifier) {
       try {
         return notifier.feed.firstWhere((p) => p.id == widget.post.id);
@@ -174,12 +187,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                       children: [
                                         Text(
                                           livePost.author.displayName,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16,
+                                            color: primaryTextColor, // Dynamic
                                           ),
                                         ),
-                                        Text("@${livePost.author.username}"),
+                                        Text(
+                                          "@${livePost.author.username}",
+                                          style: TextStyle(
+                                            color:
+                                                secondaryTextColor, // Dynamic
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -191,7 +211,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             // Post Content Text
                             Text(
                               livePost.content,
-                              style: const TextStyle(fontSize: 18, height: 1.5),
+                              style: TextStyle(
+                                fontSize: 18,
+                                height: 1.5,
+                                color: primaryTextColor, // Dynamic
+                              ),
                             ),
 
                             // --- MEDIA CAROUSEL ---
@@ -246,7 +270,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                           shape: BoxShape.circle,
                                           color: _currentImageIndex == index
                                               ? DesignTokens.accentPrimary
-                                              : DesignTokens.glassBorder,
+                                              : (isDark
+                                                    ? DesignTokens
+                                                          .glassBorderDark
+                                                    : DesignTokens.glassBorder),
                                         ),
                                       ),
                                     ),
@@ -273,23 +300,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             ],
 
                             const SizedBox(height: 16),
-                            const Divider(),
+                            Divider(
+                              color: isDark
+                                  ? DesignTokens.glassBorderDark
+                                  : DesignTokens.glassBorder,
+                            ),
                             // Stats Row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   "${livePost.likes} Likes",
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: DesignTokens.textSecondary,
+                                    color: secondaryTextColor, // Dynamic
                                   ),
                                 ),
                                 // Use local list length for accurate count
                                 Text(
                                   "Comments (${_comments.length})",
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
+                                    color: secondaryTextColor, // Dynamic
                                   ),
                                 ),
                               ],
@@ -301,13 +333,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       const SizedBox(height: 16),
                       // Comments List
                       if (_comments.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(20.0),
+                        Padding(
+                          padding: const EdgeInsets.all(20.0),
                           child: Center(
                             child: Text(
                               "No comments yet.",
                               style: TextStyle(
-                                color: DesignTokens.textSecondary,
+                                color: secondaryTextColor, // Dynamic
                               ),
                             ),
                           ),
@@ -315,7 +347,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       else
                         Column(
                           children: _comments
-                              .map((c) => _buildCommentItem(c))
+                              .map((c) => _buildCommentItem(c, isDark))
                               .toList(),
                         ),
                       const SizedBox(height: 100),
@@ -343,15 +375,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: DesignTokens.glassWhite.withOpacity(0.65),
+                    color: inputBgColor, // Dynamic
                     borderRadius: BorderRadius.circular(32),
                     border: Border.all(
-                      color: DesignTokens.glassBorder,
+                      color: inputBorderColor, // Dynamic
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: DesignTokens.glassShadow.withOpacity(0.15),
+                        color: isDark
+                            ? DesignTokens.glassShadowDark
+                            : DesignTokens.glassShadow.withOpacity(0.15),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
@@ -362,10 +396,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Expanded(
                         child: TextField(
                           controller: _commentController,
-                          decoration: const InputDecoration(
+                          style: TextStyle(
+                            color: primaryTextColor,
+                          ), // Dynamic Text
+                          decoration: InputDecoration(
                             hintText: "Write a reply...",
+                            hintStyle: TextStyle(
+                              color: secondaryTextColor, // Dynamic Hint
+                            ),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
                           ),
                         ),
                       ),
@@ -387,7 +429,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Widget _buildCommentItem(Comment comment) {
+  Widget _buildCommentItem(Comment comment, bool isDark) {
+    final primaryTextColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryTextColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     // Key is CRITICAL for preventing list jumps when data updates
     return Padding(
       key: ValueKey(comment.id),
@@ -413,17 +462,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         onTap: () => _navigateToProfile(comment.author.id),
                         child: Text(
                           comment.author.displayName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
+                            color: primaryTextColor, // Dynamic
                           ),
                         ),
                       ),
                       Text(
                         TimeFormatter.formatRelative(comment.timestamp),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
-                          color: DesignTokens.textSecondary,
+                          color: secondaryTextColor, // Dynamic
                         ),
                       ),
                     ],
@@ -431,7 +481,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(height: 4),
                   Text(
                     comment.text,
-                    style: const TextStyle(color: DesignTokens.textPrimary),
+                    style: TextStyle(color: primaryTextColor), // Dynamic
                   ),
                 ],
               ),

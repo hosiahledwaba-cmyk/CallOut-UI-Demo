@@ -6,7 +6,7 @@ import '../models/message.dart';
 import '../data/chat_repository.dart';
 import '../widgets/glass_scaffold.dart';
 import '../widgets/top_nav.dart';
-import '../widgets/message_bubble.dart'; // Handles Shared Posts
+import '../widgets/message_bubble.dart';
 import '../widgets/glass_card.dart';
 import '../theme/design_tokens.dart';
 import '../services/auth_service.dart';
@@ -67,14 +67,12 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
 
-      // Merge Logic (Preserves existing messages to avoid flicker)
       final merged = MergeUtils.mergeLists<Message>(
         current: _messages,
         incoming: incoming,
-        prependNew: false, // We handle sort manually below
+        prependNew: false,
       );
 
-      // Ensure chronological order
       merged.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
       if (mounted) {
@@ -87,7 +85,6 @@ class _ChatScreenState extends State<ChatScreen> {
           _messages = merged;
         });
 
-        // Auto-scroll logic: Scroll only if user was already at bottom or it's first load
         if (force || isAtBottom) {
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => _scrollToBottom(),
@@ -116,18 +113,30 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty) return;
 
     _textController.clear();
-
-    // Optimistic UI Update (Optional, simpler to rely on poll for now)
     final successMsg = await _repo.sendMessage(widget.partner.id, text);
 
     if (successMsg != null) {
-      // Force immediate poll to get server timestamp correct
       _fetchMessages(force: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Theme Checks
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondaryTextColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+    final inputBackgroundColor = isDark
+        ? Colors.black.withOpacity(0.5)
+        : DesignTokens.glassWhite.withOpacity(0.8);
+    final inputBorderColor = isDark
+        ? DesignTokens.glassBorderDark
+        : DesignTokens.glassBorder;
+    final typingTextColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+
     return GlassScaffold(
       showBottomNav: false,
       body: Column(
@@ -137,11 +146,11 @@ class _ChatScreenState extends State<ChatScreen> {
           // MESSAGE LIST
           Expanded(
             child: _messages.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       "No messages yet.\nSay hi! 👋",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: DesignTokens.textSecondary),
+                      style: TextStyle(color: secondaryTextColor),
                     ),
                   )
                 : ListView.builder(
@@ -151,7 +160,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
                       final isMe = msg.sender.id == _currentUserId;
-                      // The MessageBubble now handles Post types internally!
                       return MessageBubble(message: msg, isMe: isMe);
                     },
                   ),
@@ -161,10 +169,8 @@ class _ChatScreenState extends State<ChatScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
-              border: const Border(
-                top: BorderSide(color: DesignTokens.glassBorder),
-              ),
+              color: inputBackgroundColor,
+              border: Border(top: BorderSide(color: inputBorderColor)),
             ),
             child: SafeArea(
               top: false,
@@ -175,13 +181,19 @@ class _ChatScreenState extends State<ChatScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
                         controller: _textController,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: typingTextColor,
+                        ), // Dynamic Text
                         textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: "Type a message...",
-                          hintStyle: TextStyle(color: Colors.grey),
+                          hintStyle: TextStyle(
+                            color: secondaryTextColor,
+                          ), // Dynamic Hint
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
                         ),
                         onSubmitted: (_) => _handleSend(),
                       ),

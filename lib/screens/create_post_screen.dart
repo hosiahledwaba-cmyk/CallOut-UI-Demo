@@ -94,6 +94,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Theme Checks
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryTextColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     return GlassScaffold(
       showBottomNav: false,
       body: Column(
@@ -118,11 +127,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     )
                   : TextButton(
                       onPressed: _handlePost,
-                      child: const Text(
+                      child: Text(
                         "Post",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: DesignTokens.textPrimary,
+                          color: primaryTextColor, // Dynamic Color
                         ),
                       ),
                     ),
@@ -146,23 +155,26 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           isAnonymous ? Icons.visibility_off : Icons.visibility,
                           color: isAnonymous
                               ? DesignTokens.accentPrimary
-                              : DesignTokens.textSecondary,
+                              : secondaryTextColor, // Dynamic
                         ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               "Post Anonymously",
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: primaryTextColor, // Dynamic
+                              ),
                             ),
                             Text(
                               isAnonymous
                                   ? "Your identity will be hidden."
                                   : "Posting as yourself.",
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: DesignTokens.textSecondary,
+                                color: secondaryTextColor, // Dynamic
                               ),
                             ),
                           ],
@@ -187,10 +199,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       controller: _contentController,
                       maxLines: null,
                       enabled: !_isPosting,
-                      style: const TextStyle(fontSize: 16),
-                      decoration: const InputDecoration(
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: primaryTextColor, // Dynamic Input Text
+                      ),
+                      decoration: InputDecoration(
                         hintText:
                             "Share your story, report an incident, or ask for help...",
+                        hintStyle: TextStyle(
+                          color: secondaryTextColor.withOpacity(
+                            0.7,
+                          ), // Dynamic Hint
+                        ),
                         border: InputBorder.none,
                       ),
                     ),

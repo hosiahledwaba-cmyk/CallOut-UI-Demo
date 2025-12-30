@@ -21,18 +21,32 @@ class GlassTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- THEME CHECK ---
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Dynamic Colors
+    final textColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final hintColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: TextField(
         controller: controller,
         obscureText: isPassword,
         keyboardType: keyboardType,
-        style: const TextStyle(color: DesignTokens.textPrimary),
+        // Update: Dynamic Input Text Color
+        style: TextStyle(color: textColor),
         decoration: InputDecoration(
-          icon: Icon(icon, color: DesignTokens.textSecondary),
+          // Update: Dynamic Icon Color
+          icon: Icon(icon, color: hintColor),
           border: InputBorder.none,
           hintText: hint,
-          hintStyle: const TextStyle(color: DesignTokens.textSecondary),
+          // Update: Dynamic Hint Text Color
+          hintStyle: TextStyle(color: hintColor),
         ),
       ),
     );

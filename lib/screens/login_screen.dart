@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   void _handleLogin() async {
-    // 1. Validate inputs (Optional but good practice)
+    // 1. Validate inputs
     if (_emailController.text.trim().isEmpty || _passController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -35,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     // 2. Call Auth Service
-    // Note: We use .trim() to remove accidental spaces
     final success = await AuthService().login(
       _emailController.text.trim(),
       _passController.text,
@@ -45,11 +44,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // 3. Handle Result
     if (success && mounted) {
-      // FIX: Use pushAndRemoveUntil to clear the back stack (Login -> Feed)
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const FeedScreen()),
-        (route) => false, // Remove all previous routes
+        (route) => false,
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -63,6 +61,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Theme Checks
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark
+        ? DesignTokens.textPrimaryDark
+        : DesignTokens.textPrimary;
+    final secondaryTextColor = isDark
+        ? DesignTokens.textSecondaryDark
+        : DesignTokens.textSecondary;
+
     return GlassScaffold(
       showBottomNav: false,
       body: Center(
@@ -79,13 +86,16 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               Text(
                 "SafeSpace",
-                style: Theme.of(context).textTheme.headlineLarge,
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: primaryTextColor, // Dynamic
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 "Your voice. Your safety.",
                 style: TextStyle(
-                  color: DesignTokens.textSecondary,
+                  color: secondaryTextColor, // Dynamic
                   fontSize: 16,
                 ),
               ),
@@ -118,11 +128,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const SignupScreen()),
                 ),
-                child: const Text(
+                child: Text(
                   "Don't have an account? Sign Up",
                   style: TextStyle(
                     color: DesignTokens.accentSecondary,
                     fontWeight: FontWeight.bold,
+                    shadows: isDark
+                        ? [const Shadow(color: Colors.black54, blurRadius: 10)]
+                        : null,
                   ),
                 ),
               ),

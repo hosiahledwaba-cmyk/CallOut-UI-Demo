@@ -1,5 +1,6 @@
+// lib/widgets/in_app_notification.dart
 import 'package:flutter/material.dart';
-import 'dart:ui'; // For ImageFilter
+import 'dart:ui';
 import '../theme/design_tokens.dart';
 
 class InAppNotificationOverlay {
@@ -12,31 +13,29 @@ class InAppNotificationOverlay {
     final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + DesignTokens.paddingMedium,
-        left: DesignTokens.paddingMedium,
-        right: DesignTokens.paddingMedium,
+        top: MediaQuery.of(context).padding.top + 10, // Safe Area + Padding
+        left: 16,
+        right: 16,
         child: Material(
           color: Colors.transparent,
           child: _SlideDownWidget(
             child: GestureDetector(
               onTap: onTap,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  DesignTokens.borderRadiusMedium,
-                ),
+                borderRadius: BorderRadius.circular(16),
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: DesignTokens.blurSigma,
-                    sigmaY: DesignTokens.blurSigma,
-                  ),
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    padding: const EdgeInsets.all(DesignTokens.paddingMedium),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: DesignTokens.glassDark, // Using premium dark glass
-                      border: Border.all(color: DesignTokens.glassBorderDark),
-                      borderRadius: BorderRadius.circular(
-                        DesignTokens.borderRadiusMedium,
-                      ),
+                      color: const Color(
+                        0xFF1E1E2C,
+                      ).withOpacity(0.9), // Premium Dark
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: const [
                         BoxShadow(
                           color: Colors.black45,
@@ -56,10 +55,10 @@ class InAppNotificationOverlay {
                           child: const Icon(
                             Icons.notifications_active_rounded,
                             color: DesignTokens.accentPrimary,
-                            size: DesignTokens.iconSizeMedium,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(width: DesignTokens.paddingMedium),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,15 +68,16 @@ class InAppNotificationOverlay {
                                 title,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: DesignTokens.textPrimaryDark,
+                                  color: Colors
+                                      .white, // Always white on dark glass
                                   fontSize: 14,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 message,
-                                style: const TextStyle(
-                                  color: DesignTokens.textSecondaryDark,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.7),
                                   fontSize: 13,
                                 ),
                                 maxLines: 2,
@@ -101,12 +101,14 @@ class InAppNotificationOverlay {
 
     // Auto-dismiss after 4 seconds
     Future.delayed(const Duration(seconds: 4), () {
-      overlayEntry.remove();
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
     });
   }
 }
 
-// Simple Animation Wrapper
+// Animation Wrapper
 class _SlideDownWidget extends StatefulWidget {
   final Widget child;
   const _SlideDownWidget({required this.child});
@@ -124,18 +126,18 @@ class _SlideDownWidgetState extends State<_SlideDownWidget>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: DesignTokens.durationMedium,
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     )..forward();
 
     _offsetAnimation =
         Tween<Offset>(
-          begin: const Offset(0.0, -1.0), // Start above screen
+          begin: const Offset(0.0, -2.0), // Start further up
           end: Offset.zero,
         ).animate(
           CurvedAnimation(
             parent: _controller,
-            curve: DesignTokens.animationCurve,
+            curve: Curves.elasticOut, // Bouncy effect like iOS/TikTok
           ),
         );
   }
