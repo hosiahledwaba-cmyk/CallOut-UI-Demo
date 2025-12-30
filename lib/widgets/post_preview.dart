@@ -11,6 +11,7 @@ import '../screens/post_detail_screen.dart';
 import '../screens/profile_screen.dart';
 import '../data/feed_repository.dart';
 import '../utils/time_formatter.dart';
+import 'live_interactions.dart'; // <--- IMPORT THIS
 
 class PostPreview extends StatefulWidget {
   final Post post;
@@ -22,10 +23,9 @@ class PostPreview extends StatefulWidget {
 }
 
 class _PostPreviewState extends State<PostPreview> {
-  late Post _post; // The wrapper (Reposter)
-  late Post _displayPost; // The content (Original Author)
+  late Post _post;
+  late Post _displayPost;
 
-  final FeedRepository _repo = FeedRepository();
   int _currentImageIndex = 0;
 
   @override
@@ -36,13 +36,11 @@ class _PostPreviewState extends State<PostPreview> {
 
   void _initializePostData() {
     _post = widget.post;
-    // If repost, show inner content. Else show post itself.
     _displayPost = (_post.isRepost && _post.repostedPost != null)
         ? _post.repostedPost!
         : _post;
   }
 
-  // --- CRITICAL FIX: SYNC STATE FROM PARENT ---
   @override
   void didUpdateWidget(PostPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -51,25 +49,6 @@ class _PostPreviewState extends State<PostPreview> {
         _initializePostData();
       });
     }
-  }
-
-  void _handleLike() {
-    // Like the CONTENT, not the wrapper
-    final wasLiked = _displayPost.isLiked;
-
-    setState(() {
-      _displayPost = _displayPost.copyWith(
-        isLiked: !wasLiked,
-        likes: _displayPost.likes + (wasLiked ? -1 : 1),
-      );
-
-      // If not a repost, sync wrapper for consistency
-      if (!_post.isRepost) {
-        _post = _displayPost;
-      }
-    });
-
-    _repo.likePost(_displayPost.id, !wasLiked);
   }
 
   void _handleShare() {
@@ -82,7 +61,6 @@ class _PostPreviewState extends State<PostPreview> {
   }
 
   void _navigateToProfile() {
-    // Navigates to the author of the CONTENT
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -92,23 +70,14 @@ class _PostPreviewState extends State<PostPreview> {
   }
 
   void _handleTap() async {
-    final updatedPost = await Navigator.push(
+    // When returning from details, we don't strictly need to setState
+    // because the Live Widgets handle the sync now!
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PostDetailScreen(post: _displayPost),
       ),
     );
-
-    if (updatedPost != null && updatedPost is Post && mounted) {
-      setState(() {
-        if (_post.isRepost) {
-          _displayPost = updatedPost; // Update inner content
-        } else {
-          _post = updatedPost;
-          _displayPost = updatedPost;
-        }
-      });
-    }
   }
 
   @override
@@ -119,8 +88,6 @@ class _PostPreviewState extends State<PostPreview> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. REPOST HEADER
-          // Logic: Since the Feed only returns posts from people we follow,
-          // if isRepost is true, the user follows the reposter.
           if (_post.isRepost)
             Padding(
               padding: const EdgeInsets.only(left: 12, bottom: 4),
@@ -265,7 +232,6 @@ class _PostPreviewState extends State<PostPreview> {
                     ),
                 ] else if (_displayPost.imageUrl != null &&
                     _displayPost.imageUrl!.isNotEmpty) ...[
-                  // Fallback for legacy posts
                   const SizedBox(height: DesignTokens.paddingMedium),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(
@@ -280,27 +246,27 @@ class _PostPreviewState extends State<PostPreview> {
                   ),
                 ],
 
-                // Actions
+                // --- ACTIONS FOOTER (LIVE UPDATES) ---
                 const SizedBox(height: DesignTokens.paddingMedium),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _InteractionButton(
-                      icon: _displayPost.isLiked
-                          ? CupertinoIcons.heart_fill
-                          : CupertinoIcons.heart,
-                      color: _displayPost.isLiked
-                          ? DesignTokens.accentAlert
-                          : DesignTokens.textSecondary,
-                      label: "${_displayPost.likes}",
-                      onTap: _handleLike,
+                    // 1. LIVE LIKE
+                    LiveLikeButton(
+                      postId: _displayPost.id,
+                      initialLikes: _displayPost.likes,
+                      initialIsLiked: _displayPost.isLiked,
                     ),
-                    _InteractionButton(
-                      icon: CupertinoIcons.chat_bubble,
-                      label: "${_displayPost.comments}",
+
+                    // 2. LIVE COMMENTS
+                    LiveCommentButton(
+                      postId: _displayPost.id,
+                      initialComments: _displayPost.comments,
                       onTap: _handleTap,
                     ),
-                    _InteractionButton(
+
+                    // 3. STATIC SHARE (No live counter needed usually)
+                    LiveInteractionButton(
                       icon: CupertinoIcons.share,
                       label: "Share",
                       onTap: _handleShare,
@@ -311,37 +277,6 @@ class _PostPreviewState extends State<PostPreview> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _InteractionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color color;
-
-  const _InteractionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color = DesignTokens.textSecondary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(width: 4),
-            Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ),
       ),
     );
   }

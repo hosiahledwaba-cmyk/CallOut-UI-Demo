@@ -4,6 +4,7 @@ import '../widgets/glass_scaffold.dart';
 import '../widgets/glass_button.dart';
 import '../widgets/glass_text_field.dart';
 import '../services/auth_service.dart';
+import '../services/realtime_service.dart'; // <--- IMPORT THIS
 import '../theme/design_tokens.dart';
 import 'signup_screen.dart';
 import 'feed_screen.dart';
@@ -21,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   void _handleLogin() async {
-    // 1. Validate inputs
     if (_emailController.text.trim().isEmpty || _passController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -34,7 +34,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    // 2. Call Auth Service
     final success = await AuthService().login(
       _emailController.text.trim(),
       _passController.text,
@@ -42,8 +41,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = false);
 
-    // 3. Handle Result
     if (success && mounted) {
+      // --- NEW: Start Realtime Listener ---
+      RealtimeService().init();
+      // ------------------------------------
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const FeedScreen()),
@@ -87,17 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 "SafeSpace",
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: primaryTextColor, // Dynamic
+                  color: primaryTextColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 "Your voice. Your safety.",
-                style: TextStyle(
-                  color: secondaryTextColor, // Dynamic
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: secondaryTextColor, fontSize: 16),
               ),
               const SizedBox(height: 40),
               GlassTextField(

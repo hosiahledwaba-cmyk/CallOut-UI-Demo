@@ -4,11 +4,11 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui'; // For Color
+import 'dart:ui';
 import '../data/api_config.dart';
 import 'auth_service.dart';
-import '../app.dart'; // REQUIRED: To access 'navigatorKey'
-import '../widgets/in_app_notification.dart'; // REQUIRED: For the overlay
+import '../app.dart';
+import '../widgets/in_app_notification.dart';
 
 class PushNotificationService {
   static final PushNotificationService _instance =
@@ -21,77 +21,99 @@ class PushNotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
-    // 1. Request Permission
+    // 1. Setup Local Notifications (Android Icon)
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/launcher_icon');
+
+    // iOS Settings (Optional but recommended)
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings(
+          requestAlertPermission: true,
+          requestBadgePermission: true,
+          requestSoundPermission: true,
+        );
+
+    const InitializationSettings initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (response) {
+        print("🔔 Tapped System Notification: ${response.payload}");
+        // TODO: Handle navigation
+      },
+    );
+
+    // 2. Create Channel IMMEDIATELY (Critical for Android Heads-up)
+    await _createNotificationChannel();
+
+    // 3. Request Permission
     NotificationSettings settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
       sound: true,
+      provisional: false,
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       print('✅ Push Permission Granted');
 
-      // 2. Get Token & Sync
+      // 4. Sync Token
       String? token = await _fcm.getToken();
       if (token != null) {
         print("📲 Device Token: $token");
         _sendTokenToBackend(token);
       }
 
-      // 3. Listen for Token Refreshes
+      // 5. Listeners
       _fcm.onTokenRefresh.listen(_sendTokenToBackend);
-
-      // 4. Setup Listeners (Foreground & Background)
-      _setupForegroundListeners();
-      _setupLocalNotifications();
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     } else {
       print('❌ Push Permission Denied');
     }
   }
 
-  void _setupForegroundListeners() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("📩 Foreground Message: ${message.notification?.title}");
-
-      if (message.notification != null) {
-        // --- SHOW IN-APP OVERLAY ---
-        final context = navigatorKey.currentContext;
-
-        if (context != null) {
-          InAppNotificationOverlay.show(
-            context,
-            title: message.notification!.title ?? 'New Notification',
-            message: message.notification!.body ?? '',
-            onTap: () {
-              // TODO: Handle navigation based on message.data['type']
-              print("Tapped notification!");
-            },
-          );
-        } else {
-          // Fallback if no context found (rare)
-          _showSystemNotification(message);
-        }
-      }
-    });
-  }
-
-  void _setupLocalNotifications() {
+  Future<void> _createNotificationChannel() async {
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'high_importance_channel',
-      'High Importance Notifications',
-      importance: Importance.max,
+      'high_importance_channel', // id
+      'High Importance Notifications', // title
+      description: 'This channel is used for important notifications.',
+      importance: Importance.max, // IMPORTANCE_MAX shows heads-up
+      playSound: true,
     );
 
-    _localNotifications
+    await _localNotifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(channel);
   }
 
+  void _handleForegroundMessage(RemoteMessage message) {
+    print("📩 Foreground Message: ${message.notification?.title}");
+
+    // 1. Try showing Custom In-App Overlay
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      InAppNotificationOverlay.show(
+        context,
+        title: message.notification?.title ?? 'New Notification',
+        message: message.notification?.body ?? '',
+        onTap: () {},
+      );
+    } else {
+      // 2. Fallback to System Notification if context is missing
+      if (message.notification != null) {
+        _showSystemNotification(message);
+      }
+    }
+  }
+
   void _showSystemNotification(RemoteMessage message) {
     _localNotifications.show(
-      message.notification.hashCode,
+      message.hashCode,
       message.notification?.title,
       message.notification?.body,
       const NotificationDetails(
@@ -120,11 +142,8 @@ class PushNotificationService {
           "platform": Platform.isAndroid ? "android" : "ios",
         }),
       );
-
-      if (response.statusCode == 200) {
-        print("✅ Device Token saved to backend");
-      } else {
-        print("⚠️ Failed to save token: ${response.statusCode}");
+      if (response.statusCode != 200) {
+        print("⚠️ Failed to save token: ${response.body}");
       }
     } catch (e) {
       print("❌ Error sending token: $e");
